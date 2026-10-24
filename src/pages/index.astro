@@ -1,0 +1,174 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Hero from '../components/Hero.astro';
+import Structure from '../components/Structure.astro';
+import { wordmark } from '../data/wordmark';
+import { links, posts, provisionalCopy, published } from '../data/facts';
+
+const L = {
+  github: published(links.github),
+  pr: published(links.pwndbgPr),
+  commit: published(links.pwndbgCommit),
+  issue: published(links.pwndbgIssue),
+  pwndbg: published(links.pwndbgRepo),
+  crawlx: published(links.crawlx),
+  cli: published(links.cliCrawler),
+};
+const mark = wordmark.single;
+const options: [string, string][] = [
+  ['<url>', 'Starting URL to crawl (required)'],
+  ['--depth', 'Maximum depth to crawl (default 2)'],
+  ['--max-pages', 'Maximum number of pages (default 100)'],
+  ['--search', 'Keyword to look for in page content'],
+  ['--internal-only', 'Follow internal links only'],
+  ['--external-only', 'Follow external links only'],
+  ['--user-agent', 'Custom User-Agent string'],
+  ['--verbose', 'Show each visited page'],
+  ['--output', 'Save results to a file'],
+];
+---
+<Base title="anantsec" description="Security tools and open-source contributions.">
+  <Nav />
+  <main id="main">
+    <Hero />
+
+    <section class="premise scene scene--blueprint" data-scene="blueprint" aria-label="Premise">
+      <div class="wrap">
+        <p class="premise__text">
+          <span class="line">{provisionalCopy.premiseA}</span>
+          <span class="line">{provisionalCopy.premiseB}</span>
+        </p>
+      </div>
+    </section>
+
+    <section class="anatomy scene scene--blueprint" id="work" data-scene="blueprint" aria-labelledby="pwndbg-h">
+      <div class="anatomy__stage">
+        <div class="wrap" style="width:100%">
+          <div class="cols anatomy__grid">
+            <div class="anatomy__text">
+              <h2 class="display" id="pwndbg-h">Pwndbg</h2>
+              <p class="lede">An open-source plug-in for GDB and LLDB used in exploit development and reverse engineering. One command in it, <span class="code">cymbol</span>, manages custom C structures.</p>
+            </div>
+            <Structure />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="proof scene scene--paper" data-scene="paper" aria-labelledby="proof-h">
+      <div class="wrap">
+        <div class="cols">
+          <div class="proof__text stack">
+            <h3 id="proof-h">cymbol, refactored to use subcommands</h3>
+            <p class="lede">The command&rsquo;s flag-style options (<span class="code">-a</span>, <span class="code">-f</span>, <span class="code">-r</span>, <span class="code">-e</span>, <span class="code">-l</span>, <span class="code">-s</span>) became subcommands: <span class="code">add</span>, <span class="code">remove</span>, <span class="code">edit</span>, <span class="code">load</span>, <span class="code">show</span>, <span class="code">file</span>, <span class="code">show-all</span>. The documentation changed with it.</p>
+            <dl class="facts small">
+              <div><dt>Pull request</dt><dd><a href={L.pr} rel="noopener">pwndbg/pwndbg #3160</a>, addressing <a href={L.issue} rel="noopener">issue #3154</a></dd></div>
+              <div><dt>Status</dt><dd>Merged as <a href={L.commit} rel="noopener">commit 7d92563</a></dd></div>
+              <div><dt>Authorship</dt><dd>Co-authored; the commit lists four contributors</dd></div>
+            </dl>
+          </div>
+          <div class="proof__figs">
+            <figure class="evidence">
+              <img src="/img/pwndbg-commit.webp" width="1600" height="193" loading="lazy" decoding="async"
+                alt="GitHub commit page for 7d92563, titled Refactor cymbol command to use subcommands (#3160), marked Verified." />
+            </figure>
+            <figure class="evidence">
+              <img src="/img/pwndbg-diff.webp" width="1500" height="1021" loading="lazy" decoding="async"
+                alt="Diff of docs/commands/misc/cymbol.md: the usage line changes from flag options to the subcommands add, remove, edit, load, show, file and show-all." />
+              <figcaption class="small">Excerpts from the commit page on GitHub; the commit message trailers are omitted. Source: <a href={L.pr} rel="noopener">pwndbg/pwndbg #3160</a>.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="project scene scene--paper" data-scene="paper" aria-labelledby="crawlx-h">
+      <div class="wrap">
+        <div class="cols">
+          <div class="project__text stack">
+            <h2 id="crawlx-h">CrawlX</h2>
+            <p class="lede">A concurrent web crawler written in Go. Give it a starting URL and a depth; a pool of workers fetches pages, follows links within the same domain and prints a report that sorts errors by kind.</p>
+            <p class="project__links"><a href={L.crawlx} rel="noopener">Source on GitHub</a></p>
+          </div>
+          <div class="project__figs">
+            <figure class="evidence">
+              <img src="/img/crawlx-output.webp" width="1400" height="589" loading="lazy" decoding="async"
+                alt="Terminal output of the command crawlx -u https://toscrape.com -v -d 1, listing pages crawled with status codes and discovered links." />
+              <figcaption class="small">Output of <span class="code">crawlx -u https://toscrape.com -v -d 1</span> (excerpt).</figcaption>
+            </figure>
+            <figure class="evidence">
+              <img src="/img/crawlx-help.webp" width="1100" height="664" loading="lazy" decoding="async"
+                alt="CrawlX help text listing the options url, depth, allow-ip and verbose, with usage examples." />
+              <figcaption class="small">The built-in help.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="project project--flip scene scene--paper" data-scene="paper" aria-labelledby="cli-h" style="padding-top:0">
+      <div class="wrap">
+        <div class="cols">
+          <div class="project__text stack">
+            <h2 id="cli-h">CLI Web Crawler</h2>
+            <p class="lede">A command-line crawler in Python. It follows links from a starting URL to a chosen depth, respects robots.txt, can keep to internal or external links, and checks each page for a keyword. Each result carries the URL, the page title and whether the keyword matched.</p>
+            <p class="project__links"><a href={L.cli} rel="noopener">Source on GitHub</a></p>
+          </div>
+          <div class="project__figs">
+            <p class="usage" aria-label="Usage">python cli.py &lt;url&gt; [OPTIONS]</p>
+            <table class="optable">
+              <caption>Documented options</caption>
+              <tbody>
+                {options.map(([k, d]) => <tr><th scope="row">{k}</th><td>{d}</td></tr>)}
+              </tbody>
+            </table>
+            <p class="small">Taken from the project&rsquo;s README.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="writing scene scene--paper-2" id="writing" data-scene="paper" aria-labelledby="writing-h">
+      <div class="wrap">
+        <h2 class="display" id="writing-h">Writing</h2>
+        <ul class="posts">
+          {posts.map((p) => <li><a href={published(p.url)} rel="noopener"><span>{p.title}</span><span>Medium</span></a></li>)}
+        </ul>
+      </div>
+    </section>
+
+    <section class="background scene scene--paper" id="background" data-scene="paper" aria-labelledby="bg-h">
+      <div class="wrap">
+        <div class="cols">
+          <div class="background__intro">
+            <h2 class="display" id="bg-h">Background</h2>
+            <p class="lede">What the work above shows, and where to look for it.</p>
+          </div>
+          <dl class="ledger">
+            <div><dt>Python</dt><dd>CLI Web Crawler; the <span class="code">cymbol</span> command in Pwndbg</dd></div>
+            <div><dt>Go</dt><dd>CrawlX</dd></div>
+            <div><dt>Concurrency</dt><dd>CrawlX: workers, channels and a task queue</dd></div>
+            <div><dt>Command-line design</dt><dd>Subcommands in <span class="code">cymbol</span>; options and help in both crawlers</dd></div>
+            <div><dt>Documentation</dt><dd>The cymbol docs changed in the same pull request; both crawlers have READMEs</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="contact scene scene--blueprint" id="contact" data-scene="blueprint" aria-labelledby="contact-h">
+      <div class="wrap">
+        <div class="cols">
+          <div class="contact__text">
+            <h2 class="display" id="contact-h">The work is public.</h2>
+            <p class="contact__links"><a href={L.github} rel="noopener">github.com/sh4dowkey</a></p>
+          </div>
+        </div>
+      </div>
+      <div class="contact__mark" aria-hidden="true">
+        <svg viewBox={`0 -780 ${mark.width} 800`} focusable="false"><path d={mark.glyphs.join(' ')} /></svg>
+      </div>
+    </section>
+  </main>
+  <footer class="footer">Built with Astro and GSAP. Preview build.</footer>
+</Base>

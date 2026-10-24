@@ -1,0 +1,28 @@
+---
+import '@fontsource-variable/mona-sans/wdth.css';
+import '@fontsource-variable/newsreader/opsz.css';
+import '../styles/global.css';
+interface Props { title: string; description: string }
+const { title, description } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <!-- Preview build: noindex until the owner approves cutover (docs/04-implementation-plan.md section 4) -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0C2340" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script is:inline>document.documentElement.classList.add('js');</script>
+  </head>
+  <body>
+    <a class="skip" href="#work">Skip to content</a>
+    <slot />
+    <script>
+      import '../scripts/motion.ts';
+    </script>
+  </body>
+</html>

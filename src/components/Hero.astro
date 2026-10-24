@@ -1,0 +1,26 @@
+---
+import { wordmark } from '../data/wordmark';
+import { provisionalCopy } from '../data/facts';
+const ASC = 780, DESC = 20;
+const sheet = (g: readonly string[]) => `M -100000 -100000 H 100000 V 100000 H -100000 Z ${g.join(' ')}`;
+const single = wordmark.single, stacked = wordmark.stacked;
+const vbSingle = `0 ${-ASC} ${single.width} ${ASC + DESC}`;
+const vbStacked = `0 ${-ASC} ${stacked.width} ${ASC + 900 + DESC}`;
+---
+<section class="hero" id="top" data-scene="paper" aria-label="Introduction">
+  <div class="hero__stage">
+    <div class="hero__grid" aria-hidden="true"></div>
+    <h1 class="sr-only">anantsec</h1>
+    <svg class="hero__sheet hero__sheet--single" aria-hidden="true" focusable="false"
+      viewBox={vbSingle} style={`--w:${single.width};--vbh:${ASC + DESC};--asc:${ASC}`}
+      data-vbw={single.width} data-miny={-ASC} data-px={single.pole.x} data-py={single.pole.y} data-pr={single.pole.r}>
+      <g class="zoom"><path d={sheet(single.glyphs)} /></g>
+    </svg>
+    <svg class="hero__sheet hero__sheet--stacked" aria-hidden="true" focusable="false"
+      viewBox={vbStacked} style={`--w:${stacked.width};--vbh:${ASC + 900 + DESC};--asc:${ASC}`}
+      data-vbw={stacked.width} data-miny={-ASC} data-px={stacked.pole.x} data-py={stacked.pole.y} data-pr={stacked.pole.r}>
+      <g class="zoom"><path d={sheet(stacked.glyphs)} /></g>
+    </svg>
+    <p class="hero__line">{provisionalCopy.heroLine}</p>
+  </div>
+</section>

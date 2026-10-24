@@ -1,0 +1,22 @@
+---
+import { project, FLAT, VB, flatBoxes } from '../lib/structure';
+const polys = project(FLAT);
+const b = flatBoxes();
+const mid = (i: number) => b[i].x + b[i].w / 2;
+const top = b[0].y, bot = b[0].y + b[0].h;
+---
+<figure class="anatomy__fig">
+  <svg class="structure" viewBox={`0 0 ${VB.w} ${VB.h}`} role="img" aria-labelledby="structure-title">
+    <title id="structure-title">Illustration: six abstract segments of a data structure gather from a tilted stack into one flat layout, annotated with field, size and offset.</title>
+    {polys.map((points, i) => <polygon class="slab" data-i={i} points={points} />)}
+    <g class="callouts">
+      <path class="callout" pathLength="1" d={`M ${mid(1)} ${top - 4} V ${top - 46}`} />
+      <text class="callout-label" x={mid(1)} y={top - 58}>field</text>
+      <path class="callout" pathLength="1" d={`M ${b[3].x} ${bot + 14} V ${bot + 26} H ${b[3].x + b[3].w} V ${bot + 14}`} />
+      <text class="callout-label" x={mid(3)} y={bot + 54}>size</text>
+      <path class="callout" pathLength="1" d={`M ${b[0].x} ${bot + 86} H ${b[4].x} M ${b[0].x} ${bot + 78} V ${bot + 94} M ${b[4].x} ${bot + 78} V ${bot + 94}`} />
+      <text class="callout-label" x={(b[0].x + b[4].x) / 2} y={bot + 120}>offset</text>
+    </g>
+  </svg>
+  <figcaption class="small">Illustration of a data-structure layout. Not project output.</figcaption>
+</figure>
