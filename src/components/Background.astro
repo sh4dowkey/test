@@ -1,0 +1,45 @@
+---
+import { background as b, flag, pwndbg } from '../data/site';
+const [study, ...practice] = b.timeline;
+---
+<section class="background scene scene--paper" id="background" data-scene="paper" aria-labelledby="bg-h">
+  <div class="wrap">
+    <div class="cols">
+      <div class="background__intro">
+        <h2 class="display" id="bg-h">Background</h2>
+        <p class="lede" data-review={b.introReview}>{b.intro}</p>
+      </div>
+      <div class="story">
+        <article class="chapter" {...flag(study)}>
+          <h3>Studying</h3>
+          <p class="chapter__lead">{study.what} at {study.where}.</p>
+          <p class="small muted">{study.when}</p>
+          <ul class="chapter__creds">
+            {b.credentials.map((c) => <li {...flag(c)}><span>{c.name}</span><span>{c.issuer}</span></li>)}
+          </ul>
+        </article>
+        <article class="chapter">
+          <h3>Practising</h3>
+          <p class="chapter__lead">Remote internships in early 2025, and virtual job simulations alongside.</p>
+          <ul class="chapter__list">
+            {practice.map((t) => <li {...flag(t)}><span class="small muted">{t.when}</span><span><strong>{t.what}</strong>, {t.where}</span></li>)}
+          </ul>
+          <p class="small muted" {...flag(b.jobSims)}>{b.jobSims.text}</p>
+        </article>
+        <article class="chapter">
+          <h3>Building in public</h3>
+          <p class="chapter__lead">What I can point to is public: a contribution merged into an open-source debugger, two crawlers and a lab in progress.</p>
+          <ul class="chapter__caps">
+            {b.capabilities.map((c) => (
+              <li>
+                <strong>{c.title}</strong> {c.text}
+                <span class="capabilities__links">{c.links.map((l) => <a href={l.href}>{l.label}</a>)}</span>
+                {c.more && <span class="small muted" {...flag(c.more)}>{c.more.text}</span>}
+              </li>
+            ))}
+          </ul>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>

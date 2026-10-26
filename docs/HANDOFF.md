@@ -1,35 +1,33 @@
 # HANDOFF
 
-**Updated:** 2026-10-24 · **Session:** 2 · **Stage:** Implementation checkpoint 1 COMPLETE (working local site). Awaiting owner review of the running site.
+**Updated:** 2026-10-26 · **Session:** 4 · **Stage:** Visual refinement 3 COMPLETE (local preview). Awaiting owner review.
 
-## What exists
-Astro 7 + TypeScript + GSAP 3.15 (bundled locally), standalone in `anantsec-redesign/`. Single-page homepage with all scenes: hero zoom (pinned), premise, Pwndbg anatomy (pinned) → Paper curtain → verified PR evidence, CrawlX, CLI Web Crawler, Writing, Background, Contact. Fonts self-hosted (Mona Sans, Newsreader; both OFL).
-Run: `npm install && npm run build && npm run preview` → http://127.0.0.1:4321/ (`npm run dev` also works). Legacy repos and live site untouched. Nothing deployed or committed.
+## Run
+`npm install` · `npm run build` · `npm run preview` → http://127.0.0.1:4321/ (`npm run dev` works too). Node 22.22+.
+`?review` outlines every provisional item. `npm run build:production` FAILS while any `review` flag remains in `src/data/site.ts` (verified: it does). It leaves `dist` incomplete when it fails, so run `npm run build` again before previewing.
 
-## Tested (actually run, headless Chromium 141, 1 CPU sandbox)
-- Production build passes; scripts type-check clean (`tsc --noEmit`).
-- Screenshots at many scroll positions: desktop 1440×900, mobile 390×844, reduced-motion, JavaScript disabled. Zero console errors. No horizontal overflow (incl. after resize).
-- Exactly 2 pinned elements (`hero__stage`, `anatomy__stage`). CLS 0.0 during the scripted scroll. Anchor links land correctly with pins active.
-- Reversibility: frames at 6 scroll positions are pixel-identical scrolling forward vs backward (nav excluded; it hides on downward scroll by design).
-- Hero JS 45.9 KB gzip (budget 80 KB).
-## NOT tested (do not claim)
-Real phones/tablets; Safari, Firefox; frame-time/performance on real hardware (sandbox renders in software); Lighthouse; axe/screen reader/keyboard-only audit; 200% zoom; the SVG-zoom cost on Safari/iOS (storyboard risk R-1 still open); Lite capability heuristic (untested guess); Lenis (not added, per decision).
+## Design system (src/styles/global.css)
+Warm paper `#F4EFE7` and sand `#E9E1D3`; midnight `#0B1020` and indigo-night `#141B3D`; cobalt `#3B4BFF` (light scenes) / `#8FA0FF` (dark); coral `#FF7452` only for what changes or needs attention (old flags, "work in progress"). Gradients are scene lighting only. Mona Sans (display), Newsreader (text), JetBrains Mono (code). Contrast estimates: cobalt on paper ≈ 5:1, cobalt-hi on midnight ≈ 7:1 (not tool-verified).
 
-## Implementation decisions (reversible)
-- Hero: Paper sheet SVG path with the wordmark as cut-outs onto Blueprint; zoom into the "t" crossbar junction (thickest stroke, computed by `tools/make_wordmark.py`); exponential scale, `scrub: 0.8`; stacked "anant/sec" layout on portrait screens.
-- Premise is its own scene after the pin (not revealed inside the pin).
-- Pwndbg: original SVG plates (math in `src/lib/structure.ts`); pinned 300vh on desktop ≥900px, finishes at 80% then the Paper section overlaps by 60lvh (CSS negative margin); unpinned scrubbed on narrower screens.
-- Nav hides on downward scroll, returns on upward scroll / keyboard focus.
-- Storyboard deviations: Paper→Blueprint curtain before Contact (T4) not built (hard edge instead); code font is the system monospace (no webfont).
-- Lite heuristic uses `deviceMemory ≤ 2` only (core count misreports in VMs); `?motion=lite|full` override for testing.
+## What changed this session
+- **Opening:** name moved to the nav and a small tagline. Headline "Building tools. Understanding systems. Exploring security." with the key words in cobalt. ONE visual: a signal that draws itself to the first node on load, then (scroll-driven, same pin) passes two more nodes, crosses a rising boundary and turns luminous as it enters the dark scene; the three phrases light as their nodes are reached. Landscape and portrait SVG variants. Old ring/disc/strip removed.
+- **Pwndbg:** slabs and "field/size/offset" removed. New explanation built from the patch of PR #3160: the seven old options (`-a -f -r -e -l -s --show-all`) trace to the subcommand of the same name (`add file remove edit load show show-all`); `file` moves from 2nd to 6th place so exactly one trace crosses; then the new usage line and "New with the subcommands: --force on add and file, --name on file". Same pin, scrub, 80%-complete timing and paper curtain into the real evidence.
+- **Projects:** CrawlX (screenshot on an indigo plate, the project's own `crawlx -h` typeset beside it), CLI Web Crawler (typographic usage + options on sand), AD lab (indigo scene, topology drawn from the README with planned parts dashed). The AI-generated legacy lab diagram is still not used.
+- **New "What I work with" section** (between projects and Writing): two groups, filled markers = public work on this page (links to it), hollow = résumé only (no link, flagged `review`). No levels or percentages. Tracer runs down a spine as you scroll; items reveal with a stagger (reversible); hover/focus responses; works on mobile.
+- **Writing:** topic in cobalt, metadata row, hover tint + accent bar + underline + shifted "Read on Medium".
+- **Background:** now a story rail (Studying / Practising / Building in public) instead of a table; same flagged data.
+- **Closing:** circle/iris and giant wordmark removed. Statement, a route (spine with ticks) drawn as you arrive to four contact rows, an end marker, a top edge highlight and a colophon.
+- Removed: `src/lib/structure.ts` and the slab component. Added: `@fontsource-variable/jetbrains-mono`.
 
-## Content published (all verified; see `src/data/facts.ts`)
-Pwndbg PR #3160 / commit 7d92563 / issue #3154 (crops exclude third-party emails); CrawlX and CLI Web Crawler descriptions from their READMEs; evidence crops from legacy screenshots; three Medium titles/links from the legacy site (URLs not fetched; sandbox cannot reach Medium); GitHub link.
-**Provisional copy (owner review):** hero line "Security tools and open-source contributions."; premise "Built in the open. / Every project here links to its public source, so each claim can be checked." (PC-1..PC-3 in `02`).
-**Withheld (not rendered, kept in `facts.ts` `withheld`):** email, LinkedIn, Medium profile, education, experience, credentials, resume PDF (contains unapproved email/status). AD lab and SecureSuite are not on the page.
+## Tested (actually run; headless Chromium 141, 1-CPU sandbox)
+Production build passes; `tsc` clean. Screenshots (desktop 1440×900, mobile 390×844, reduced-motion) of opening, premise, Pwndbg at five progress points, proof, each project, toolkit, Writing, Background, closing, page end: no console errors, no horizontal overflow. Two pins only. CLS 0.0. Anchors (including Toolkit) land correctly. Forward/back frames differ by ≤0.005% of pixels. Resize OK. Nav readable on light and dark scenes in screenshots; fixed a mobile nav overflow and a mobile headline clip found during inspection. I did not have your screen recording, so comparisons were against my own earlier screenshots.
+**NOT tested:** real phones; Safari/Firefox; real-hardware frame times; Lighthouse; axe/screen reader/keyboard audit; 200% zoom; the Lite heuristic.
 
-## Blockers (owner input)
-Same open items as `docs/02-decisions-and-owner-inputs.md` §2; none block running the site. Most valuable next answers: OI-2 (positioning/premise wording), OI-3 (wordmark `anantsec` confirmed provisional), OI-21 (contact method/email), truth-table rows for background content.
+## Items needing your review (`?review`; 26 flagged in `src/data/site.ts`)
+All items listed last session, plus: hero statement wording and tagline; the five résumé-only toolkit entries (Linux, Burp Suite, Nmap, Wireshark, Nessus / OpenVAS); closing statement; AD lab inclusion. Withheld still: résumé PDF, 12th-grade result, unverified badge claims, SecureSuite.
+
+## Known limitations
+Writing dates show no year. The toolkit "Git / GitHub" evidence is the merged upstream pull request. Closing statement wording is mine. Opening is sparse on the right until the trace draws (intentional negative space; consider adding detail if it feels thin). No OG image, sitemap, headers file or redirects yet. Hover states cannot be exercised in screenshots; they were reviewed in CSS only.
 
 ## Next action
-Owner: run the preview and review the hero zoom, Pwndbg sequence and copy; list changes. Then: (1) real-device testing (iPhone Safari, Android Chrome) of both pins; (2) accessibility pass; (3) refine from review notes; (4) Phase 2 items still open: sitemap, headers file, OG image, redirects, case-study pages.
+Owner: review the preview; correct `src/data/site.ts` and delete each `review` field as confirmed. Then: real-device testing of both pins; accessibility pass; OG image, sitemap, headers, legacy redirects; `npm run build:production` must pass before any deployment.

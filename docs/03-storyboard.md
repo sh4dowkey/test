@@ -1,5 +1,7 @@
 # 03 — Storyboard (Stage 1)
 
+> **Superseded (sessions 3 and 4):** the opening is now the signal-and-boundary composition, the Pwndbg illustration is the cymbol flag-to-subcommand explanation, and the palette is warm paper / midnight / cobalt (see `docs/HANDOFF.md`). Motion rules (two pins, native scroll, reduced-motion variants) still apply.
+
 Status: PROPOSED — awaiting owner review. No code exists. Everything here is PROVISIONAL until approved.
 Placeholders use `[BRACKETS]` and are never published. Facts come only from `00-source-audit.md` rows marked VERIFIED.
 Units: `vh` = viewport height (implement with `svh`/`lvh` per mobile notes). "Scroll distance" = extra scroll consumed while pinned.

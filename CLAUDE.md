@@ -25,6 +25,7 @@ Cinematic, editorial, experimental-minimal single-page portfolio plus optional c
 - Publish only facts marked VERIFIED in `docs/00-source-audit.md` §10 or confirmed by the owner in `docs/02-decisions-and-owner-inputs.md`.
 - Never invent achievements, skills, credentials, biography, experience or metrics. Do not choose silently between conflicting claims; mark NEEDS OWNER CONFIRMATION.
 - Omit unsupported claims (e.g., bug bounty, red teaming, Cobalt Strike, Ghidra, malware analysis, forensics, NIST CSF, PTES) until confirmed.
+- Personal info and copy live only in `src/data/site.ts`; anything unconfirmed carries a `review` flag (`?review` highlights it; `npm run build:production` blocks it).
 - Placeholders live only in planning docs as `[BRACKETED]` tokens and are never published (build must fail if pending content renders).
 - Illustrations are labelled as illustrations; evidence is real and sourced; check screenshots for personal/third-party data before use.
 - Do not reuse badge art, Kali/HTB/Anonymous artwork, or assets of unknown origin.

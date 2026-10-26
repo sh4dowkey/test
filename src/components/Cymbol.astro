@@ -1,0 +1,46 @@
+---
+import { pwndbg } from '../data/site';
+/**
+ * The Pwndbg explanation: cymbol's seven flag-style options and the subcommands they became in PR #3160.
+ * Mapping comes from the patch (data/site.ts `pwndbg.mapping`). `file` moves from 2nd to 6th place in the
+ * usage line, so exactly one trace crosses the others. Static markup = finished state (all drawn).
+ */
+const map = pwndbg.mapping;
+const order = pwndbg.newOrder;
+const rows = map.length;
+const traces = map.map((m, i) => {
+  const j = order.indexOf(m.sub);
+  const y1 = i * 100 + 50, y2 = j * 100 + 50;
+  return { i, j, d: `M 0 ${y1} C 58 ${y1} 42 ${y2} 100 ${y2}` };
+});
+const newRows = order.map((s) => map.find((m) => m.sub === s)!);
+const oldUsage = map.map((m) => (m.oldArg ? `[${m.oldFlag} ${m.oldArg}]` : `[${m.oldFlag}]`)).join(' ');
+const newUsage = `{${order.join(',')}} ...`;
+---
+<figure class="cym" aria-labelledby="cym-cap" style={`--rows:${rows}`}>
+  <div class="cym__usage cym__usage--before">
+    <span class="cym__tag">Before</span>
+    <code>cymbol {oldUsage}</code>
+  </div>
+  <div class="cym__map">
+    <ol class="cym__col cym__col--old" aria-label="Options before">
+      {map.map((m, i) => (
+        <li data-row={i}><code><span class="flag">{m.oldFlag}</span>{m.oldArg && <span class="arg"> {m.oldArg}</span>}</code></li>
+      ))}
+    </ol>
+    <svg class="cym__traces" viewBox={`0 0 100 ${rows * 100}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      {traces.map((t) => <path class="cym__trace" data-row={t.i} data-to={t.j} d={t.d} />)}
+    </svg>
+    <ol class="cym__col cym__col--new" aria-label="Subcommands after">
+      {newRows.map((m) => (
+        <li data-row={map.indexOf(m)}><code><span class="sub">{m.sub}</span>{m.arg && <span class="arg"> {m.arg}</span>}</code></li>
+      ))}
+    </ol>
+  </div>
+  <div class="cym__usage cym__usage--after">
+    <span class="cym__tag">After</span>
+    <code>cymbol {newUsage}</code>
+  </div>
+  <p class="cym__added small">New with the subcommands: <code>--force</code> on <code>add</code> and <code>file</code>, and <code>--name</code> on <code>file</code>.</p>
+  <figcaption id="cym-cap" class="small">The seven options of <code>cymbol</code> before and after pull request #3160, read from its patch. An explanation of the change, not program output.</figcaption>
+</figure>

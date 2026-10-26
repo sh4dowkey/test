@@ -1,6 +1,7 @@
 ---
 import '@fontsource-variable/mona-sans/wdth.css';
 import '@fontsource-variable/newsreader/opsz.css';
+import '@fontsource-variable/jetbrains-mono/index.css';
 import '../styles/global.css';
 interface Props { title: string; description: string }
 const { title, description } = Astro.props;
@@ -16,7 +17,7 @@ const { title, description } = Astro.props;
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#0C2340" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <script is:inline>document.documentElement.classList.add('js');</script>
+    <script is:inline>document.documentElement.classList.add('js');if(/[?&]review\b/.test(location.search))document.documentElement.classList.add('show-review');</script>
   </head>
   <body>
     <a class="skip" href="#work">Skip to content</a>

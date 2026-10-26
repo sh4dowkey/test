@@ -2,55 +2,46 @@
 import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Hero from '../components/Hero.astro';
-import Structure from '../components/Structure.astro';
-import { wordmark } from '../data/wordmark';
-import { links, posts, provisionalCopy, published } from '../data/facts';
+import Cymbol from '../components/Cymbol.astro';
+import Toolkit from '../components/Toolkit.astro';
+import Writing from '../components/Writing.astro';
+import Background from '../components/Background.astro';
+import Closing from '../components/Closing.astro';
+import { person, premise, pwndbg, crawlx, cliCrawler, adLab, flag, reviewReport } from '../data/site';
 
-const L = {
-  github: published(links.github),
-  pr: published(links.pwndbgPr),
-  commit: published(links.pwndbgCommit),
-  issue: published(links.pwndbgIssue),
-  pwndbg: published(links.pwndbgRepo),
-  crawlx: published(links.crawlx),
-  cli: published(links.cliCrawler),
-};
-const mark = wordmark.single;
-const options: [string, string][] = [
-  ['<url>', 'Starting URL to crawl (required)'],
-  ['--depth', 'Maximum depth to crawl (default 2)'],
-  ['--max-pages', 'Maximum number of pages (default 100)'],
-  ['--search', 'Keyword to look for in page content'],
-  ['--internal-only', 'Follow internal links only'],
-  ['--external-only', 'Follow external links only'],
-  ['--user-agent', 'Custom User-Agent string'],
-  ['--verbose', 'Show each visited page'],
-  ['--output', 'Save results to a file'],
-];
+const c = pwndbg.contribution;
+const review = reviewReport();
+if (review.length) console.info(`\n[content] ${review.length} item(s) flagged for review in src/data/site.ts (open the page with ?review to see them)`);
+
+// Typeset CrawlX help (transcribed from its own screenshot): escape, then tint the flags.
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const helpHtml = crawlx.help.lines
+  .map((l) => esc(l).replace(/(^|\s)(--?[a-z][a-z-]*)/g, '$1<span class="tok">$2</span>').replace(/(&lt;[A-Za-z_]+&gt;|\[OPTIONS\])/g, '<span class="tok2">$1</span>'))
+  .join('\n');
 ---
-<Base title="anantsec" description="Security tools and open-source contributions.">
+<Base title={`${person.name}: security tools and open source`} description={person.description}>
   <Nav />
   <main id="main">
     <Hero />
 
-    <section class="premise scene scene--blueprint" data-scene="blueprint" aria-label="Premise">
+    <section class="premise scene scene--dark" data-scene="dark" aria-label="Premise" {...flag(premise)}>
       <div class="wrap">
         <p class="premise__text">
-          <span class="line">{provisionalCopy.premiseA}</span>
-          <span class="line">{provisionalCopy.premiseB}</span>
+          <span class="line">{premise.lead}</span>
+          <span class="line">{premise.body}</span>
         </p>
       </div>
     </section>
 
-    <section class="anatomy scene scene--blueprint" id="work" data-scene="blueprint" aria-labelledby="pwndbg-h">
+    <section class="anatomy scene scene--dark" id="work" data-scene="dark" aria-labelledby="pwndbg-h">
       <div class="anatomy__stage">
         <div class="wrap" style="width:100%">
           <div class="cols anatomy__grid">
             <div class="anatomy__text">
-              <h2 class="display" id="pwndbg-h">Pwndbg</h2>
-              <p class="lede">An open-source plug-in for GDB and LLDB used in exploit development and reverse engineering. One command in it, <span class="code">cymbol</span>, manages custom C structures.</p>
+              <h2 class="display" id="pwndbg-h">{pwndbg.name}</h2>
+              <p class="lede">{pwndbg.intro.split('cymbol')[0]}<span class="code">cymbol</span>{pwndbg.intro.split('cymbol')[1]}</p>
             </div>
-            <Structure />
+            <div class="anatomy__fig"><Cymbol /></div>
           </div>
         </div>
       </div>
@@ -60,115 +51,109 @@ const options: [string, string][] = [
       <div class="wrap">
         <div class="cols">
           <div class="proof__text stack">
-            <h3 id="proof-h">cymbol, refactored to use subcommands</h3>
-            <p class="lede">The command&rsquo;s flag-style options (<span class="code">-a</span>, <span class="code">-f</span>, <span class="code">-r</span>, <span class="code">-e</span>, <span class="code">-l</span>, <span class="code">-s</span>) became subcommands: <span class="code">add</span>, <span class="code">remove</span>, <span class="code">edit</span>, <span class="code">load</span>, <span class="code">show</span>, <span class="code">file</span>, <span class="code">show-all</span>. The documentation changed with it.</p>
+            <h3 id="proof-h">{c.title}</h3>
+            <p class="lede">One option per action became one subcommand per action, each named after the flag it replaced. The documentation changed with it.</p>
             <dl class="facts small">
-              <div><dt>Pull request</dt><dd><a href={L.pr} rel="noopener">pwndbg/pwndbg #3160</a>, addressing <a href={L.issue} rel="noopener">issue #3154</a></dd></div>
-              <div><dt>Status</dt><dd>Merged as <a href={L.commit} rel="noopener">commit 7d92563</a></dd></div>
-              <div><dt>Authorship</dt><dd>Co-authored; the commit lists four contributors</dd></div>
+              <div><dt>Pull request</dt><dd><a href={c.prUrl} rel="noopener">{c.prLabel}</a>, &ldquo;{c.prTitle}&rdquo;, addressing <a href={c.issueUrl} rel="noopener">{c.issueLabel}</a></dd></div>
+              <div><dt>Status</dt><dd>{c.status} as <a href={c.commitUrl} rel="noopener">{c.commitLabel}</a></dd></div>
+              <div><dt>Authorship</dt><dd>{c.authorship}</dd></div>
             </dl>
           </div>
           <div class="proof__figs">
-            <figure class="evidence">
-              <img src="/img/pwndbg-commit.webp" width="1600" height="193" loading="lazy" decoding="async"
-                alt="GitHub commit page for 7d92563, titled Refactor cymbol command to use subcommands (#3160), marked Verified." />
-            </figure>
-            <figure class="evidence">
-              <img src="/img/pwndbg-diff.webp" width="1500" height="1021" loading="lazy" decoding="async"
-                alt="Diff of docs/commands/misc/cymbol.md: the usage line changes from flag options to the subcommands add, remove, edit, load, show, file and show-all." />
-              <figcaption class="small">Excerpts from the commit page on GitHub; the commit message trailers are omitted. Source: <a href={L.pr} rel="noopener">pwndbg/pwndbg #3160</a>.</figcaption>
-            </figure>
+            {pwndbg.evidence.map((e, i) => (
+              <figure class="evidence">
+                <img src={e.src} width={e.w} height={e.h} loading="lazy" decoding="async" alt={e.alt} />
+                {i === pwndbg.evidence.length - 1 && <figcaption class="small">{pwndbg.evidenceCaption} Source: <a href={c.prUrl} rel="noopener">{c.prLabel}</a>.</figcaption>}
+              </figure>
+            ))}
           </div>
         </div>
       </div>
     </section>
 
-    <section class="project scene scene--paper" data-scene="paper" aria-labelledby="crawlx-h">
+    <section class="project project--crawlx scene scene--paper" id={crawlx.id} data-scene="paper" aria-labelledby="crawlx-h">
       <div class="wrap">
         <div class="cols">
           <div class="project__text stack">
-            <h2 id="crawlx-h">CrawlX</h2>
-            <p class="lede">A concurrent web crawler written in Go. Give it a starting URL and a depth; a pool of workers fetches pages, follows links within the same domain and prints a report that sorts errors by kind.</p>
-            <p class="project__links"><a href={L.crawlx} rel="noopener">Source on GitHub</a></p>
+            <h2 id="crawlx-h">{crawlx.name}</h2>
+            <p class="lede">{crawlx.lede}</p>
+            <dl class="facts small">
+              {crawlx.facts.map((f) => <div {...flag(f)}><dt>{f.label}</dt><dd>{f.value}</dd></div>)}
+            </dl>
+            <p class="project__links"><a href={crawlx.repoUrl} rel="noopener">Source on GitHub</a></p>
           </div>
-          <div class="project__figs">
-            <figure class="evidence">
-              <img src="/img/crawlx-output.webp" width="1400" height="589" loading="lazy" decoding="async"
-                alt="Terminal output of the command crawlx -u https://toscrape.com -v -d 1, listing pages crawled with status codes and discovered links." />
-              <figcaption class="small">Output of <span class="code">crawlx -u https://toscrape.com -v -d 1</span> (excerpt).</figcaption>
-            </figure>
-            <figure class="evidence">
-              <img src="/img/crawlx-help.webp" width="1100" height="664" loading="lazy" decoding="async"
-                alt="CrawlX help text listing the options url, depth, allow-ip and verbose, with usage examples." />
-              <figcaption class="small">The built-in help.</figcaption>
+          <div class="project__figs crawlx__stage">
+            <div class="crawlx__plate" aria-hidden="true"></div>
+            {crawlx.evidence.map((e) => (
+              <figure class="evidence crawlx__shot">
+                <img src={e.src} width={e.w} height={e.h} loading="lazy" decoding="async" alt={e.alt} />
+                <figcaption class="small">{e.caption}</figcaption>
+              </figure>
+            ))}
+            <figure class="crawlx__help">
+              <figcaption><span class="dot"></span><span class="dot"></span><span class="dot"></span>{crawlx.help.title}</figcaption>
+              <pre set:html={helpHtml}></pre>
             </figure>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="project project--flip scene scene--paper" data-scene="paper" aria-labelledby="cli-h" style="padding-top:0">
+    <section class="project project--flip project--cli scene scene--sand" id={cliCrawler.id} data-scene="paper" aria-labelledby="cli-h">
       <div class="wrap">
         <div class="cols">
           <div class="project__text stack">
-            <h2 id="cli-h">CLI Web Crawler</h2>
-            <p class="lede">A command-line crawler in Python. It follows links from a starting URL to a chosen depth, respects robots.txt, can keep to internal or external links, and checks each page for a keyword. Each result carries the URL, the page title and whether the keyword matched.</p>
-            <p class="project__links"><a href={L.cli} rel="noopener">Source on GitHub</a></p>
+            <h2 id="cli-h">{cliCrawler.name}</h2>
+            <p class="lede">{cliCrawler.lede}</p>
+            <p class="project__links"><a href={cliCrawler.repoUrl} rel="noopener">Source on GitHub</a></p>
           </div>
           <div class="project__figs">
-            <p class="usage" aria-label="Usage">python cli.py &lt;url&gt; [OPTIONS]</p>
-            <table class="optable">
-              <caption>Documented options</caption>
-              <tbody>
-                {options.map(([k, d]) => <tr><th scope="row">{k}</th><td>{d}</td></tr>)}
-              </tbody>
-            </table>
-            <p class="small">Taken from the project&rsquo;s README.</p>
+            <p class="cli__usage" aria-label="Usage"><span class="tok">python</span> cli.py <span class="tok2">&lt;url&gt;</span> <span class="tok2">[OPTIONS]</span></p>
+            <dl class="cli__opts">
+              {cliCrawler.options.map(([k, d]) => <div><dt>{k}</dt><dd>{d}</dd></div>)}
+            </dl>
+            <p class="small muted">{cliCrawler.optionsNote}</p>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="writing scene scene--paper-2" id="writing" data-scene="paper" aria-labelledby="writing-h">
-      <div class="wrap">
-        <h2 class="display" id="writing-h">Writing</h2>
-        <ul class="posts">
-          {posts.map((p) => <li><a href={published(p.url)} rel="noopener"><span>{p.title}</span><span>Medium</span></a></li>)}
-        </ul>
-      </div>
-    </section>
-
-    <section class="background scene scene--paper" id="background" data-scene="paper" aria-labelledby="bg-h">
+    <section class="project project--lab scene scene--deep" id={adLab.id} data-scene="dark" aria-labelledby="lab-h" {...flag(adLab)}>
       <div class="wrap">
         <div class="cols">
-          <div class="background__intro">
-            <h2 class="display" id="bg-h">Background</h2>
-            <p class="lede">What the work above shows, and where to look for it.</p>
+          <div class="project__text stack">
+            <p class="status">{adLab.status}</p>
+            <h2 id="lab-h" class="project__h2--sm">{adLab.name}</h2>
+            <p class="lede">{adLab.lede}</p>
+            <p class="small lab__progress">{adLab.progress}</p>
+            <p class="project__links"><a href={adLab.repoUrl} rel="noopener">Source on GitHub</a></p>
           </div>
-          <dl class="ledger">
-            <div><dt>Python</dt><dd>CLI Web Crawler; the <span class="code">cymbol</span> command in Pwndbg</dd></div>
-            <div><dt>Go</dt><dd>CrawlX</dd></div>
-            <div><dt>Concurrency</dt><dd>CrawlX: workers, channels and a task queue</dd></div>
-            <div><dt>Command-line design</dt><dd>Subcommands in <span class="code">cymbol</span>; options and help in both crawlers</dd></div>
-            <div><dt>Documentation</dt><dd>The cymbol docs changed in the same pull request; both crawlers have READMEs</dd></div>
-          </dl>
+          <div class="project__figs">
+            <figure class="lab__fig">
+              <svg class="lab__topo" viewBox="0 0 560 320" role="img" aria-labelledby="lab-topo-t">
+                <title id="lab-topo-t">Lab topology from the README: DC01 and WIN10-1 are built and joined to the domain; the Kali attacker machine is planned.</title>
+                <path class="lab__link" d="M 200 120 H 360" />
+                <text class="lab__linklabel" x="280" y="108" text-anchor="middle">domain join</text>
+                <path class="lab__link lab__link--planned" d="M 140 170 V 200 Q 140 250 190 250 H 215" />
+                <path class="lab__link lab__link--planned" d="M 420 170 V 200 Q 420 250 370 250 H 345" />
+                <g class="lab__node lab__node--built"><rect x="20" y="70" width="180" height="100" rx="3" /><text class="n" x="38" y="108">DC01</text><text class="s" x="38" y="132">Windows Server 2019</text><text class="s" x="38" y="152">AD DS and DNS</text></g>
+                <g class="lab__node lab__node--built"><rect x="360" y="70" width="180" height="100" rx="3" /><text class="n" x="378" y="108">WIN10-1</text><text class="s" x="378" y="132">Windows 10 Pro</text><text class="s" x="378" y="152">Joined to the domain</text></g>
+                <g class="lab__node lab__node--planned"><rect x="215" y="215" width="130" height="80" rx="3" /><text class="n" x="233" y="250">Kali</text><text class="s" x="233" y="274">Planned</text></g>
+              </svg>
+              <figcaption class="small">{adLab.machinesNote} Dashed means planned.</figcaption>
+            </figure>
+            <dl class="lab__status small">
+              <div><dt>Built</dt><dd>{adLab.built.join(', ')}</dd></div>
+              <div><dt>Planned</dt><dd>{adLab.planned.join(', ')}</dd></div>
+            </dl>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="contact scene scene--blueprint" id="contact" data-scene="blueprint" aria-labelledby="contact-h">
-      <div class="wrap">
-        <div class="cols">
-          <div class="contact__text">
-            <h2 class="display" id="contact-h">The work is public.</h2>
-            <p class="contact__links"><a href={L.github} rel="noopener">github.com/sh4dowkey</a></p>
-          </div>
-        </div>
-      </div>
-      <div class="contact__mark" aria-hidden="true">
-        <svg viewBox={`0 -780 ${mark.width} 800`} focusable="false"><path d={mark.glyphs.join(' ')} /></svg>
-      </div>
-    </section>
+    <Toolkit />
+    <Writing />
+    <Background />
+    <Closing />
   </main>
-  <footer class="footer">Built with Astro and GSAP. Preview build.</footer>
 </Base>
