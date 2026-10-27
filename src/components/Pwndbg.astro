@@ -1,0 +1,47 @@
+---
+import { pwndbg as p } from '../data/site';
+---
+<section class="scene scene--paper pwndbg" id={p.id} data-scene="paper" aria-labelledby="pwndbg-h">
+  <div class="wrap">
+    <div class="pwndbg__grid">
+      <header class="pwndbg__text" data-reveal-group>
+        <p class="kicker" data-reveal-item>04 &middot; {p.kicker}</p>
+        <h3 class="h3 h3--md" id="pwndbg-h" data-reveal-item>{p.title}</h3>
+        <p class="lede" data-reveal-item>{p.intro}</p>
+        <dl class="facts" data-reveal-item>
+          {p.meta.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+        <p class="project__links" data-reveal-item>
+          <a class="btn btn--dark" href={p.pr.url} rel="noopener">Read pull request #3160</a>
+          <a class="textlink" href={p.commit.url} rel="noopener">{p.commit.label}</a>
+          <a class="textlink" href={p.issue.url} rel="noopener">{p.issue.label}</a>
+        </p>
+      </header>
+
+      <div class="cym" data-cym>
+        <div class="cym__usage">
+          <p><span class="cym__tag">Before</span><code set:html={p.usageBefore.replace(/\] \[/g, '] <wbr>[')} /></p>
+          <p><span class="cym__tag">After</span><code set:html={p.usageAfter.replace(/,/g, ',<wbr>')} /></p>
+        </div>
+        <table class="cym__table">
+          <caption class="sr-only">Each old cymbol option and the subcommand that replaced it, from the patch of {p.commit.label}.</caption>
+          <thead><tr><th scope="col">Option</th><th scope="col"><span class="sr-only">became</span></th><th scope="col">Subcommand</th></tr></thead>
+          <tbody>
+            {p.mapping.map((m) => (
+              <tr class="cym__row">
+                <td class="cym__old"><code>{m.oldFlag}{m.oldArg && ` ${m.oldArg}`}</code></td>
+                <td class="cym__link" aria-hidden="true"><i></i></td>
+                <td class="cym__new"><code><b>{m.sub}</b>{m.arg && ` ${m.arg}`}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="cym__added">{p.added}</p>
+        <figure class="evidence" data-parallax="8">
+          <img src={p.evidence.src} width={p.evidence.w} height={p.evidence.h} loading="lazy" decoding="async" alt={p.evidence.alt} />
+          <figcaption>{p.evidence.caption} Source: <a href={p.commit.url} rel="noopener">{p.commit.label}</a>.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>

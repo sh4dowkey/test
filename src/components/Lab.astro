@@ -1,0 +1,47 @@
+---
+import { adLab as lab } from '../data/site';
+const built = lab.status_table.filter((s) => s.state === 'built');
+const planned = lab.status_table.filter((s) => s.state === 'planned');
+---
+<section class="scene scene--ink lab" id={lab.id} data-scene="dark" aria-labelledby="lab-h">
+  <div class="wrap">
+    <header class="lab__head" data-reveal-group>
+      <p class="kicker kicker--d" data-reveal-item>03 &middot; Lab &middot; Windows Server and Active Directory</p>
+      <div class="lab__title" data-reveal-item>
+        <h3 class="h3" id="lab-h">{lab.name}</h3>
+        <span class="status"><i aria-hidden="true"></i>{lab.status}</span>
+      </div>
+      <p class="lede lede--d" data-reveal-item>{lab.lede}</p>
+    </header>
+
+    <figure class="labmap" data-frame>
+      <p class="labmap__net"><span>{lab.network}</span></p>
+      <ol class="labmap__nodes">
+        {lab.machines.map((m) => (
+          <li class={`node node--${m.state}`} data-state={m.state}>
+            <span class="node__stub" aria-hidden="true"></span>
+            <p class="node__state">{m.state === 'built' ? 'Built' : 'Planned'}</p>
+            <p class="node__host">{m.host}</p>
+            <p class="node__os">{m.os}</p>
+            <p class="node__role">{m.role}</p>
+            <p class="node__ip"><code>{m.ip}</code></p>
+          </li>
+        ))}
+      </ol>
+      <span class="labmap__pulse" aria-hidden="true"></span>
+      <figcaption>{lab.note}</figcaption>
+    </figure>
+
+    <div class="lab__foot" data-reveal-group>
+      <dl class="lab__list" data-reveal-item>
+        <dt>Built</dt>
+        {built.map((s) => <dd><b>{s.name}</b> {s.note}</dd>)}
+      </dl>
+      <dl class="lab__list lab__list--planned" data-reveal-item>
+        <dt>Planned</dt>
+        {planned.map((s) => <dd><b>{s.name}</b> {s.note}</dd>)}
+      </dl>
+      <p class="project__links" data-reveal-item><a class="btn btn--light" href={lab.repoUrl} rel="noopener">View source on GitHub</a></p>
+    </div>
+  </div>
+</section>

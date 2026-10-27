@@ -1,24 +1,21 @@
 ---
-import { writing, flag } from '../data/site';
+import { writing } from '../data/site';
 ---
-<section class="writing scene scene--sand" id="writing" data-scene="paper" aria-labelledby="writing-h">
-  <div class="wrap">
-    <div class="cols">
-      <div class="writing__intro">
-        <h2 class="display" id="writing-h">Writing</h2>
-        <p class="lede" {...flag(writing)}>{writing.intro}</p>
-      </div>
-      <ul class="articles">
-        {writing.articles.map((a) => (
-          <li {...flag(a)}>
-            <a class="article" href={a.url} rel="noopener">
-              <span class="article__meta"><span>{a.topic}</span><span>{a.venue}, {a.date}</span></span>
-              <span class="article__title">{a.title}</span>
-              <span class="article__cta">Read on {a.venue}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
+<section class="scene scene--paper writing" id="writing" data-scene="paper" aria-labelledby="writing-h">
+  <div class="wrap writing__grid">
+    <header data-reveal-group>
+      <h2 class="h2" id="writing-h" data-reveal-item>{writing.heading}</h2>
+      <p class="sec-head__lede" data-reveal-item>{writing.lede}</p>
+    </header>
+    <ul class="posts" data-reveal-group>
+      {writing.articles.map((a) => (
+        <li data-reveal-item>
+          <a class="post" href={a.url} rel="noopener">
+            <span class="post__title">{a.title}</span>
+            <span class="post__meta"><time>{a.date}</time> &middot; {a.topic} &middot; Medium</span>
+          </a>
+        </li>
+      ))}
+    </ul>
   </div>
 </section>

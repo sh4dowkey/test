@@ -1,0 +1,44 @@
+---
+import { resume } from '../data/site';
+---
+<section class="scene scene--paper resume" id="resume" data-scene="paper" aria-labelledby="resume-h">
+  <div class="wrap resume__grid">
+    <aside class="resume__side">
+      <div class="resume__stick" data-reveal-group>
+        <h2 class="h2 h2--md" id="resume-h" data-reveal-item>{resume.heading}</h2>
+        <dl class="facts" data-reveal-item>
+          {resume.facts.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+        <a class="dl" href={resume.pdf.href} download={resume.pdf.filename} data-reveal-item>
+          <span class="dl__label">{resume.pdf.label}</span>
+          <span class="dl__meta">{resume.pdf.meta}</span>
+        </a>
+      </div>
+    </aside>
+    <div class="resume__main">
+      <ol class="timeline" data-timeline>
+        <span class="timeline__rail" aria-hidden="true"><i class="timeline__fill"></i></span>
+        {resume.timeline.map((e) => (
+          <li class="tl" data-tl>
+            <span class="tl__dot" aria-hidden="true"></span>
+            <p class="tl__when">{e.when}</p>
+            <h3 class="tl__title">{e.title}</h3>
+            <p class="tl__org">{e.org}</p>
+            {e.roles && (
+              <ul class="tl__roles">{e.roles.map((r) => <li><span>{r.role}, {r.org}</span><time>{r.when}</time></li>)}</ul>
+            )}
+            {e.text && <p class="tl__text">{e.text}</p>}
+            {e.textNote && <p class="tl__note">{e.textNote}</p>}
+            {e.link && <p class="tl__text"><a class="textlink" href={e.link.href} rel="noopener">{e.link.label}</a></p>}
+          </li>
+        ))}
+      </ol>
+      <section class="creds" aria-labelledby="creds-h" data-reveal-group>
+        <h3 class="creds__h" id="creds-h" data-reveal-item>Credentials</h3>
+        <ul>
+          {resume.credentials.map((c) => <li data-reveal-item><span>{c.name}</span><small>{c.issuer}</small></li>)}
+        </ul>
+      </section>
+    </div>
+  </div>
+</section>

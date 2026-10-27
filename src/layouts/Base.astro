@@ -1,10 +1,12 @@
 ---
 import '@fontsource-variable/mona-sans/wdth.css';
-import '@fontsource-variable/newsreader/opsz.css';
 import '@fontsource-variable/jetbrains-mono/index.css';
+import 'lenis/dist/lenis.css';
 import '../styles/global.css';
 interface Props { title: string; description: string }
 const { title, description } = Astro.props;
+// Previews stay out of search engines. Set PUBLIC_INDEXABLE=1 at build time for the real deployment.
+const indexable = import.meta.env.PUBLIC_INDEXABLE === '1';
 ---
 <!doctype html>
 <html lang="en">
@@ -13,11 +15,18 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <!-- Preview build: noindex until the owner approves cutover (docs/04-implementation-plan.md section 4) -->
-    <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0C2340" />
+    {!indexable && <meta name="robots" content="noindex, nofollow" />}
+    <meta name="theme-color" content="#0B0C12" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <script is:inline>document.documentElement.classList.add('js');if(/[?&]review\b/.test(location.search))document.documentElement.classList.add('show-review');</script>
+    <script is:inline>
+      // Progressive enhancement: `js` enables scripted starting states; `ready` is added by motion.ts (or by this
+      // timer if the script fails) so the opening can never stay hidden.
+      document.documentElement.classList.add('js');
+      setTimeout(function () { document.documentElement.classList.add('ready'); }, 3200);
+    </script>
   </head>
   <body>
     <a class="skip" href="#work">Skip to content</a>

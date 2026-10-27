@@ -1,67 +1,37 @@
 ---
-import { person, flag } from '../data/site';
-/**
- * The opening. One signal travels across a light page, passes through three nodes (one per phrase of the
- * statement), then crosses a boundary into the dark scene. The boundary rises with scroll until the viewport
- * is dark. All geometry lives in the two SVGs (landscape / portrait) so path, nodes and boundary always agree.
- * Static markup = the finished composition (no-JS, reduced motion): trace drawn, boundary resting at its start.
- */
-const land = {
-  vb: '0 0 1440 900', boundary: 684,
-  d: 'M -60 640 C 90 640 150 590 280 590 C 420 590 470 676 600 664 C 690 656 700 540 820 540 C 940 540 960 640 1080 630 C 1160 624 1200 700 1250 790 C 1280 850 1300 900 1310 960',
-  nodes: [[280, 590], [820, 540], [1080, 630]],
-};
-const port = {
-  vb: '0 0 390 844', boundary: 628,
-  d: 'M -30 520 C 30 520 56 488 100 488 C 150 488 160 548 210 540 C 250 534 262 470 300 470 C 340 470 350 560 330 610 C 316 650 330 720 344 900',
-  nodes: [[100, 488], [210, 540], [300, 470]],
-};
-const variants = [ { k: 'land', ...land }, { k: 'port', ...port } ];
+import { person, index, resume } from '../data/site';
 ---
-<section class="hero" id="top" data-scene="paper" aria-label="Introduction">
-  <div class="hero__stage">
-    {variants.map((v) => (
-      <svg class={`hero__art hero__art--${v.k}`} viewBox={v.vb} preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"
-        data-boundary={v.boundary} data-nodes={JSON.stringify(v.nodes)}>
-        <defs>
-          <linearGradient id={`deep-${v.k}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#18214A" />
-            <stop offset="0.5" stop-color="#0F1634" />
-            <stop offset="1" stop-color="#0B1020" />
-          </linearGradient>
-          <linearGradient id={`tr-${v.k}`} gradientUnits="userSpaceOnUse" x1="0" y1={v.boundary} x2="0" y2={v.boundary + 1}>
-            <stop offset="0" stop-color="#3B4BFF" /><stop offset="1" stop-color="#8FA0FF" />
-          </linearGradient>
-          <linearGradient id={`nf-${v.k}`} gradientUnits="userSpaceOnUse" x1="0" y1={v.boundary} x2="0" y2={v.boundary + 1}>
-            <stop offset="0" stop-color="#F4EFE7" /><stop offset="1" stop-color="#0B1020" />
-          </linearGradient>
-          <linearGradient id={`edge-${v.k}`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stop-color="#8FA0FF" stop-opacity="0" />
-            <stop offset="0.5" stop-color="#8FA0FF" stop-opacity="0.9" />
-            <stop offset="1" stop-color="#8FA0FF" stop-opacity="0" />
-          </linearGradient>
-        </defs>
-        <g class="deep" transform={`translate(0 ${v.boundary})`}>
-          <rect x="-200" y="0" width="2200" height="1500" fill={`url(#deep-${v.k})`} />
-          <rect class="deep__edge" x="-200" y="-1" width="2200" height="2" fill={`url(#edge-${v.k})`} />
-          <g class="deep__strata" stroke="#8FA0FF" stroke-opacity="0.08" stroke-width="1">
-            <line x1="-200" x2="2000" y1="90" y2="90" /><line x1="-200" x2="2000" y1="210" y2="210" /><line x1="-200" x2="2000" y1="380" y2="380" />
-          </g>
-        </g>
-        <path class="trace-echo" d={v.d} transform="translate(0 14)" />
-        <path class="trace" d={v.d} />
-        <g class="nodes">
-          {v.nodes.map(([x, y]) => <circle class="node" cx={x} cy={y} r="7" />)}
-        </g>
-        <circle class="head" r="5" cx="-100" cy="-100" />
-      </svg>
-    ))}
-    <div class="hero__copy" {...flag(person)}>
+<section class="hero scene scene--ink" id="top" data-scene="dark" aria-label="Introduction">
+  <div class="hero__glow" aria-hidden="true"><i class="g1"></i><i class="g2"></i></div>
+  <div class="wrap hero__grid">
+    <div class="hero__copy">
       <h1 class="hero__title">
-        {person.heroLines.map((l, i) => { const w = l.replace(/\.$/, '').split(' '); const key = w.pop(); return <span class="phrase" data-i={i}>{w.join(' ')} <span class="key">{key}</span>.</span>; })}
+        {person.heroLines.map((l, i) => (
+          <span class="hero__line" data-intro><span class="hero__line-in" data-i={i}>{l.text}</span></span>
+        ))}
       </h1>
-      <p class="hero__who">{person.tagline}</p>
+      <p class="hero__intro" data-intro>{person.intro}</p>
+      <p class="hero__actions" data-intro>
+        <a class="btn btn--light" href="#work">See the work</a>
+        <a class="textlink" href={resume.pdf.href} download={resume.pdf.filename}>R&eacute;sum&eacute; (PDF)</a>
+      </p>
     </div>
-    <p class="hero__cue" aria-hidden="true">Scroll</p>
+    <nav class="hero__index" aria-label="Selected work" data-intro>
+      <p class="hero__index-label">In this portfolio</p>
+      <div class="index-wrap">
+      <ol class="index">
+        {index.map((p) => (
+          <li class="index__row" data-id={p.id}>
+            <a class="index__link" href={p.href}>
+              <span class="index__n">{p.n}</span>
+              <span class="index__body"><span class="index__name">{p.name}</span><span class="index__meta">{p.meta}</span></span>
+              <span class="index__kind">{p.kind}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+      <span class="index__trace" aria-hidden="true"><i class="index__trace-fill"></i></span>
+      </div>
+    </nav>
   </div>
 </section>

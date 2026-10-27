@@ -1,14 +1,14 @@
 ---
 import { person } from '../data/site';
 ---
-<header class="nav" data-tone="paper">
-  <a class="nav__brand" href="#top">{person.name}</a>
+<header class="nav" data-tone="dark">
+  <a class="nav__home" href="#top" aria-label={`${person.name}, back to the top`}>{person.name}</a>
   <nav aria-label="Primary">
     <ul>
       <li><a href="#work">Work</a></li>
       <li><a href="#toolkit">Toolkit</a></li>
       <li><a href="#writing">Writing</a></li>
-      <li><a href="#background">Background</a></li>
+      <li><a href="#resume">R&eacute;sum&eacute;</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
   </nav>

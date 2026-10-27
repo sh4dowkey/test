@@ -2,158 +2,87 @@
 import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Hero from '../components/Hero.astro';
-import Cymbol from '../components/Cymbol.astro';
+import Lab from '../components/Lab.astro';
+import Pwndbg from '../components/Pwndbg.astro';
 import Toolkit from '../components/Toolkit.astro';
 import Writing from '../components/Writing.astro';
-import Background from '../components/Background.astro';
-import Closing from '../components/Closing.astro';
-import { person, premise, pwndbg, crawlx, cliCrawler, adLab, flag, reviewReport } from '../data/site';
-
-const c = pwndbg.contribution;
-const review = reviewReport();
-if (review.length) console.info(`\n[content] ${review.length} item(s) flagged for review in src/data/site.ts (open the page with ?review to see them)`);
-
-// Typeset CrawlX help (transcribed from its own screenshot): escape, then tint the flags.
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const helpHtml = crawlx.help.lines
-  .map((l) => esc(l).replace(/(^|\s)(--?[a-z][a-z-]*)/g, '$1<span class="tok">$2</span>').replace(/(&lt;[A-Za-z_]+&gt;|\[OPTIONS\])/g, '<span class="tok2">$1</span>'))
-  .join('\n');
+import Resume from '../components/Resume.astro';
+import Contact from '../components/Contact.astro';
+import { person, work, crawlx, cliCrawler } from '../data/site';
 ---
-<Base title={`${person.name}: security tools and open source`} description={person.description}>
+<Base title={`${person.name}: Python and Go security tools, labs and open source`} description={person.description}>
   <Nav />
   <main id="main">
     <Hero />
 
-    <section class="premise scene scene--dark" data-scene="dark" aria-label="Premise" {...flag(premise)}>
-      <div class="wrap">
-        <p class="premise__text">
-          <span class="line">{premise.lead}</span>
-          <span class="line">{premise.body}</span>
-        </p>
-      </div>
-    </section>
+    <!-- Light scene that rises over the hero. First project is visible straight away; no spacer. -->
+    <div class="curtain" id="work">
+      <section class="scene scene--paper work" data-scene="paper" aria-labelledby="work-h">
+        <div class="wrap">
+          <header class="sec-head" data-reveal-group>
+            <h2 class="h2" id="work-h" data-reveal-item>{work.heading}</h2>
+            <p class="sec-head__lede" data-reveal-item>{work.lede}</p>
+          </header>
 
-    <section class="anatomy scene scene--dark" id="work" data-scene="dark" aria-labelledby="pwndbg-h">
-      <div class="anatomy__stage">
-        <div class="wrap" style="width:100%">
-          <div class="cols anatomy__grid">
-            <div class="anatomy__text">
-              <h2 class="display" id="pwndbg-h">{pwndbg.name}</h2>
-              <p class="lede">{pwndbg.intro.split('cymbol')[0]}<span class="code">cymbol</span>{pwndbg.intro.split('cymbol')[1]}</p>
+          <article class="project project--crawlx" id={crawlx.id} aria-labelledby="crawlx-h">
+            <div class="project__text" data-reveal-group>
+              <p class="kicker" data-reveal-item>01 &middot; {crawlx.kicker}</p>
+              <h3 class="h3" id="crawlx-h" data-reveal-item>{crawlx.name}</h3>
+              <p class="lede" data-reveal-item>{crawlx.lede}</p>
+              <dl class="facts" data-reveal-item>
+                {crawlx.facts.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+              </dl>
+              <p class="project__links" data-reveal-item><a class="btn btn--dark" href={crawlx.repoUrl} rel="noopener">View source on GitHub</a></p>
             </div>
-            <div class="anatomy__fig"><Cymbol /></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="proof scene scene--paper" data-scene="paper" aria-labelledby="proof-h">
-      <div class="wrap">
-        <div class="cols">
-          <div class="proof__text stack">
-            <h3 id="proof-h">{c.title}</h3>
-            <p class="lede">One option per action became one subcommand per action, each named after the flag it replaced. The documentation changed with it.</p>
-            <dl class="facts small">
-              <div><dt>Pull request</dt><dd><a href={c.prUrl} rel="noopener">{c.prLabel}</a>, &ldquo;{c.prTitle}&rdquo;, addressing <a href={c.issueUrl} rel="noopener">{c.issueLabel}</a></dd></div>
-              <div><dt>Status</dt><dd>{c.status} as <a href={c.commitUrl} rel="noopener">{c.commitLabel}</a></dd></div>
-              <div><dt>Authorship</dt><dd>{c.authorship}</dd></div>
-            </dl>
-          </div>
-          <div class="proof__figs">
-            {pwndbg.evidence.map((e, i) => (
-              <figure class="evidence">
-                <img src={e.src} width={e.w} height={e.h} loading="lazy" decoding="async" alt={e.alt} />
-                {i === pwndbg.evidence.length - 1 && <figcaption class="small">{pwndbg.evidenceCaption} Source: <a href={c.prUrl} rel="noopener">{c.prLabel}</a>.</figcaption>}
+            <div class="crawlx__frame" data-frame>
+              <figure class="shot shot--wide" data-parallax="10">
+                <a href={crawlx.shots[0].src} target="_blank" rel="noopener" aria-label="Open the full-size screenshot in a new tab"><img src={crawlx.shots[0].src} width={crawlx.shots[0].w} height={crawlx.shots[0].h} loading="lazy" decoding="async" alt={crawlx.shots[0].alt} /></a>
+                <figcaption><code>{crawlx.shots[0].caption}</code></figcaption>
               </figure>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
+              <div class="crawlx__row">
+                <figure class="shot" data-parallax="-8">
+                  <a href={crawlx.shots[1].src} target="_blank" rel="noopener" aria-label="Open the full-size screenshot in a new tab"><img src={crawlx.shots[1].src} width={crawlx.shots[1].w} height={crawlx.shots[1].h} loading="lazy" decoding="async" alt={crawlx.shots[1].alt} /></a>
+                  <figcaption><code>{crawlx.shots[1].caption}</code></figcaption>
+                </figure>
+                <figure class="pool" aria-label="Illustration of CrawlX's worker pool: a task queue feeds ten workers, which send results to the report.">
+                  <div class="pool__stage" aria-hidden="true">
+                    <div class="pool__col pool__queue"><span class="pool__tok"></span><span class="pool__tok"></span><span class="pool__tok"></span></div>
+                    <div class="pool__workers">{Array.from({ length: crawlx.pipeline.workers }).map(() => <i class="pool__w"></i>)}</div>
+                    <div class="pool__col pool__out"><i></i><i></i><i></i></div>
+                  </div>
+                  <ul class="pool__legend">{crawlx.pipeline.steps.map((s) => <li>{s}</li>)}</ul>
+                  <figcaption>Illustration: <code>NumWorkers = 10</code> in <code>crawler.go</code>.</figcaption>
+                </figure>
+              </div>
+            </div>
+          </article>
 
-    <section class="project project--crawlx scene scene--paper" id={crawlx.id} data-scene="paper" aria-labelledby="crawlx-h">
-      <div class="wrap">
-        <div class="cols">
-          <div class="project__text stack">
-            <h2 id="crawlx-h">{crawlx.name}</h2>
-            <p class="lede">{crawlx.lede}</p>
-            <dl class="facts small">
-              {crawlx.facts.map((f) => <div {...flag(f)}><dt>{f.label}</dt><dd>{f.value}</dd></div>)}
-            </dl>
-            <p class="project__links"><a href={crawlx.repoUrl} rel="noopener">Source on GitHub</a></p>
-          </div>
-          <div class="project__figs crawlx__stage">
-            <div class="crawlx__plate" aria-hidden="true"></div>
-            {crawlx.evidence.map((e) => (
-              <figure class="evidence crawlx__shot">
-                <img src={e.src} width={e.w} height={e.h} loading="lazy" decoding="async" alt={e.alt} />
-                <figcaption class="small">{e.caption}</figcaption>
-              </figure>
-            ))}
-            <figure class="crawlx__help">
-              <figcaption><span class="dot"></span><span class="dot"></span><span class="dot"></span>{crawlx.help.title}</figcaption>
-              <pre set:html={helpHtml}></pre>
-            </figure>
-          </div>
+          <article class="project project--cli" id={cliCrawler.id} aria-labelledby="cli-h">
+            <div class="cli__panel" data-frame>
+              <p class="cli__usage" aria-label="Usage">
+                <span class="t1">{cliCrawler.usage[0]}</span> <span>{cliCrawler.usage[1]}</span> <span class="t2">{cliCrawler.usage[2]}</span> <span class="t2">{cliCrawler.usage[3]}</span>
+              </p>
+              <dl class="cli__opts" data-reveal-group>
+                {cliCrawler.options.map(([k, d]) => <div data-reveal-item><dt>{k}</dt><dd>{d}</dd></div>)}
+              </dl>
+              <p class="cli__note">{cliCrawler.note}</p>
+            </div>
+            <div class="project__text" data-reveal-group>
+              <p class="kicker" data-reveal-item>02 &middot; {cliCrawler.kicker}</p>
+              <h3 class="h3" id="cli-h" data-reveal-item>{cliCrawler.name}</h3>
+              <p class="lede" data-reveal-item>{cliCrawler.lede}</p>
+              <p class="project__links" data-reveal-item><a class="btn btn--dark" href={cliCrawler.repoUrl} rel="noopener">View source on GitHub</a></p>
+            </div>
+          </article>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="project project--flip project--cli scene scene--sand" id={cliCrawler.id} data-scene="paper" aria-labelledby="cli-h">
-      <div class="wrap">
-        <div class="cols">
-          <div class="project__text stack">
-            <h2 id="cli-h">{cliCrawler.name}</h2>
-            <p class="lede">{cliCrawler.lede}</p>
-            <p class="project__links"><a href={cliCrawler.repoUrl} rel="noopener">Source on GitHub</a></p>
-          </div>
-          <div class="project__figs">
-            <p class="cli__usage" aria-label="Usage"><span class="tok">python</span> cli.py <span class="tok2">&lt;url&gt;</span> <span class="tok2">[OPTIONS]</span></p>
-            <dl class="cli__opts">
-              {cliCrawler.options.map(([k, d]) => <div><dt>{k}</dt><dd>{d}</dd></div>)}
-            </dl>
-            <p class="small muted">{cliCrawler.optionsNote}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="project project--lab scene scene--deep" id={adLab.id} data-scene="dark" aria-labelledby="lab-h" {...flag(adLab)}>
-      <div class="wrap">
-        <div class="cols">
-          <div class="project__text stack">
-            <p class="status">{adLab.status}</p>
-            <h2 id="lab-h" class="project__h2--sm">{adLab.name}</h2>
-            <p class="lede">{adLab.lede}</p>
-            <p class="small lab__progress">{adLab.progress}</p>
-            <p class="project__links"><a href={adLab.repoUrl} rel="noopener">Source on GitHub</a></p>
-          </div>
-          <div class="project__figs">
-            <figure class="lab__fig">
-              <svg class="lab__topo" viewBox="0 0 560 320" role="img" aria-labelledby="lab-topo-t">
-                <title id="lab-topo-t">Lab topology from the README: DC01 and WIN10-1 are built and joined to the domain; the Kali attacker machine is planned.</title>
-                <path class="lab__link" d="M 200 120 H 360" />
-                <text class="lab__linklabel" x="280" y="108" text-anchor="middle">domain join</text>
-                <path class="lab__link lab__link--planned" d="M 140 170 V 200 Q 140 250 190 250 H 215" />
-                <path class="lab__link lab__link--planned" d="M 420 170 V 200 Q 420 250 370 250 H 345" />
-                <g class="lab__node lab__node--built"><rect x="20" y="70" width="180" height="100" rx="3" /><text class="n" x="38" y="108">DC01</text><text class="s" x="38" y="132">Windows Server 2019</text><text class="s" x="38" y="152">AD DS and DNS</text></g>
-                <g class="lab__node lab__node--built"><rect x="360" y="70" width="180" height="100" rx="3" /><text class="n" x="378" y="108">WIN10-1</text><text class="s" x="378" y="132">Windows 10 Pro</text><text class="s" x="378" y="152">Joined to the domain</text></g>
-                <g class="lab__node lab__node--planned"><rect x="215" y="215" width="130" height="80" rx="3" /><text class="n" x="233" y="250">Kali</text><text class="s" x="233" y="274">Planned</text></g>
-              </svg>
-              <figcaption class="small">{adLab.machinesNote} Dashed means planned.</figcaption>
-            </figure>
-            <dl class="lab__status small">
-              <div><dt>Built</dt><dd>{adLab.built.join(', ')}</dd></div>
-              <div><dt>Planned</dt><dd>{adLab.planned.join(', ')}</dd></div>
-            </dl>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <Toolkit />
-    <Writing />
-    <Background />
-    <Closing />
+      <Lab />
+      <Pwndbg />
+      <Toolkit />
+      <Writing />
+      <Resume />
+      <Contact />
+    </div>
   </main>
 </Base>

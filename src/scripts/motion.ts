@@ -1,9 +1,17 @@
 /**
- * Progressive enhancement. The page is complete without this file (no-JS and reduced-motion get the finished static compositions).
- * Pinned sequences: the opening (hero) and the Pwndbg cymbol explanation. Nothing else pins. Native scrolling throughout.
+ * Progressive enhancement. The page is complete without this file: no-JS and reduced-motion visitors get the finished
+ * compositions. There are NO pinned sequences. The opening is a sticky "curtain": the hero stays put while the first
+ * light scene rises over it, so every pixel of scroll moves real content (no spacer, no dead viewport).
+ *
+ * Motion system (shared by everything below)
+ *   ease      expo-out for entrances, none for scrubbed values (Lenis already smooths them)
+ *   duration  0.9 to 1.2 s for entrances, 0.35 to 0.55 s for hover and focus responses
+ *   stagger   0.08 s
+ *   property  transform and opacity only (plus clip-path on media frames while they reveal, cleared afterwards)
  */
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
 
 gsap.registerPlugin(ScrollTrigger);
 ScrollTrigger.config({ ignoreMobileResize: true });
@@ -11,206 +19,342 @@ ScrollTrigger.config({ ignoreMobileResize: true });
 const root = document.documentElement;
 const q = <T extends Element = HTMLElement>(s: string, scope: ParentNode = document) => scope.querySelector<T>(s);
 const qa = <T extends Element = HTMLElement>(s: string, scope: ParentNode = document) => Array.from(scope.querySelectorAll<T>(s));
-const nav = q('.nav')!;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const ease = (x: number) => x * x * (3 - 2 * x);
-const easeIO = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
-const setTone = (t: string) => { if (nav.dataset.tone !== t) nav.dataset.tone = t; };
+const EASE = 'expo.out';
+const STAGGER = 0.08;
 
-// Provisional capability heuristic (docs/03-storyboard.md section 7). Core count is NOT used (VMs misreport it).
-// Override for testing: ?motion=lite | ?motion=full
+const params = new URLSearchParams(location.search);
+const override = params.get('motion');                       // ?motion=lite | ?motion=full (testing)
 const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
-const override = new URLSearchParams(location.search).get('motion');
+const reducedMQ = matchMedia('(prefers-reduced-motion: reduce)');
+const reduced = reducedMQ.matches && override !== 'full';
 const lite = override ? override === 'lite' : mem !== undefined && mem <= 2;
+const coarse = matchMedia('(pointer: coarse)').matches;
+const desktop = () => matchMedia('(min-width: 901px)').matches;
 
-/* ---- always on: nav tone per scene + hide-on-scroll-down (no animation of content involved) ---- */
-qa<HTMLElement>('[data-scene]').forEach((sec) => {
-  if (sec.classList.contains('hero')) return;
-  ScrollTrigger.create({ trigger: sec, start: 'top 40px', end: 'bottom 40px', onToggle: (s) => { if (s.isActive) setTone(sec.dataset.scene!); } });
+/* ---------------------------------------------------------------- smooth scrolling (Lenis, GSAP ticker) */
+let lenis: Lenis | null = null;
+const tick = (time: number) => { lenis?.raf(time * 1000); };
+if (!lite && !reduced) {
+  lenis = new Lenis({ autoRaf: false, lerp: 0.11, smoothWheel: true, wheelMultiplier: 1 });   // touch stays native
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add(tick);
+  gsap.ticker.lagSmoothing(0);
+  (window as unknown as { __lenis?: Lenis }).__lenis = lenis;
+}
+const scrollToId = (id: string, immediate = false) => {
+  const el = id === '#top' ? null : q(id);
+  if (id !== '#top' && !el) return false;
+  if (lenis) lenis.scrollTo(el ?? 0, { duration: 1.1, immediate });
+  else if (el) el.scrollIntoView(); else window.scrollTo(0, 0);
+  return true;
+};
+document.addEventListener('click', (e) => {
+  const a = (e.target as Element).closest<HTMLAnchorElement>('a[href^="#"]');
+  if (!a || !lenis || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  const id = a.getAttribute('href')!;
+  if (id.length > 1 && !q(id)) return;
+  e.preventDefault();
+  history.replaceState({ y: window.scrollY }, '');
+  scrollToId(id); history.pushState(null, '', id);
 });
-ScrollTrigger.create({
-  start: 0, end: 'max', onUpdate: (self) => {
-    const y = self.scroll();
-    if (y < 120 || self.direction === -1) nav.classList.remove('is-hidden');
-    else if (self.direction === 1 && y > 400) nav.classList.add('is-hidden');
-  },
+addEventListener('popstate', (e) => {
+  const y = (e.state as { y?: number } | null)?.y;
+  if (typeof y === 'number') {
+    const restore = () => window.scrollTo(0, y);
+    restore();
+    addEventListener('hashchange', () => { restore(); requestAnimationFrame(restore); }, { once: true });
+    setTimeout(restore, 80);
+  } else if (location.hash.length > 1) scrollToId(location.hash, true);
 });
 
-/* ---- opening: a signal passes three nodes, then crosses a boundary into the dark scene ---- */
-function hero(dist: number, portrait: boolean) {
-  const stage = q('.hero__stage')!;
-  const svg = q<SVGSVGElement>(portrait ? '.hero__art--port' : '.hero__art--land')!;
-  const trace = q<SVGPathElement>('.trace', svg)!, echo = q<SVGPathElement>('.trace-echo', svg)!;
-  const deep = q<SVGGElement>('.deep', svg)!, head = q<SVGCircleElement>('.head', svg)!;
-  const nodes = qa<SVGCircleElement>('.node', svg);
-  const grads = qa<SVGLinearGradientElement>('linearGradient[id^="tr-"], linearGradient[id^="nf-"]', svg);
-  const b0 = +svg.dataset.boundary!, nodePts = JSON.parse(svg.dataset.nodes!) as [number, number][];
-  const copy = q('.hero__copy')!, phrases = qa('.phrase', stage), cue = q('.hero__cue')!;
-  const L = trace.getTotalLength();
-  // length along the path at which each node sits
-  const nodeL = nodePts.map(([x, y]) => {
-    let best = 0, bd = Infinity;
-    for (let i = 0; i <= 800; i++) { const pt = trace.getPointAtLength((L * i) / 800); const d = (pt.x - x) ** 2 + (pt.y - y) ** 2; if (d < bd) { bd = d; best = (L * i) / 800; } }
-    return best;
+/* ---------------------------------------------------------------- navigation: tone per scene, hide on scroll down, current section */
+const nav = q('.nav')!;
+const setTone = (t: string) => { if (nav.dataset.tone !== t) nav.dataset.tone = t; };
+const setCurrent = (id: string) => qa<HTMLAnchorElement>('.nav ul a').forEach((a) => a.toggleAttribute('aria-current', a.getAttribute('href') === id) );
+function initNav() {
+  qa('[data-scene]').forEach((sec) => {
+    ScrollTrigger.create({ trigger: sec, start: 'top 40px', end: 'bottom 40px', onToggle: (s) => { if (s.isActive) setTone(sec.dataset.scene === 'paper' ? 'paper' : 'dark'); } });
   });
-  trace.style.strokeDasharray = `${L}`; echo.style.strokeDasharray = `${L}`;
-
-  const boundaryScreenY = (y: number) => { const m = svg.getScreenCTM(); return m ? y * m.d + m.f : y; };
-  const render = (p: number) => {
-    const len = L * ease(clamp01((p - 0.03) / 0.57));
-    trace.style.strokeDashoffset = String(L - len);
-    echo.style.strokeDashoffset = String(L - L * ease(clamp01((p - 0.09) / 0.57)));
-    const pt = trace.getPointAtLength(Math.max(0.01, len));
-    head.setAttribute('cx', pt.x.toFixed(1)); head.setAttribute('cy', pt.y.toFixed(1));
-    head.style.opacity = len > 1 && len < L - 1 ? '1' : '0';
-    nodes.forEach((n, i) => { n.style.opacity = String(len >= nodeL[i] - 6 ? 1 : 0.2); });
-    phrases.forEach((el, i) => { el.style.opacity = i === 0 ? '1' : String(0.38 + 0.62 * clamp01((len - (nodeL[i] - 90)) / 90)); });
-    const by = b0 + (-80 - b0) * easeIO(clamp01((p - 0.45) / 0.43));
-    deep.setAttribute('transform', `translate(0 ${by.toFixed(1)})`);
-    grads.forEach((g) => { g.setAttribute('y1', by.toFixed(1)); g.setAttribute('y2', (by + 1).toFixed(1)); });
-    const fade = clamp01((p - 0.5) / 0.2);
-    copy.style.opacity = String(1 - fade);
-    copy.style.transform = `translate3d(0,${(-48 * clamp01((p - 0.5) / 0.3)).toFixed(1)}px,0)`;
-    cue.style.opacity = String(Math.max(0, 1 - p / 0.08));
-    setTone(boundaryScreenY(by) < 40 ? 'dark' : 'paper');
-  };
-  const proxy = { p: 0 }, intro = { p: 0 };
-  const show = () => render(Math.max(proxy.p, intro.p));
-  const introTween = gsap.to(intro, { p: 0.19, duration: 1.9, delay: 0.35, ease: 'power2.inOut', onUpdate: show });
-  const tween = gsap.to(proxy, {
-    p: 1, ease: 'none', onUpdate: show,
-    scrollTrigger: {
-      trigger: '.hero', start: 'top top', end: () => `+=${Math.round(window.innerHeight * dist)}`,
-      pin: stage, scrub: 0.8, anticipatePin: 1, invalidateOnRefresh: true, refreshPriority: 2,
-      onRefresh: show,
+  const map: [string, string][] = [['.work', '#work'], ['#lab', '#work'], ['#pwndbg', '#work'], ['#toolkit', '#toolkit'], ['#writing', '#writing'], ['#resume', '#resume'], ['#contact', '#contact']];
+  map.forEach(([sel, id]) => { const el = q(sel); if (el) ScrollTrigger.create({ trigger: el, start: 'top 50%', end: 'bottom 50%', onToggle: (s) => { if (s.isActive) setCurrent(id); } }); });
+  ScrollTrigger.create({ trigger: '.hero', start: 'top top', end: 'top -50%', onLeaveBack: () => setCurrent('') });
+  ScrollTrigger.create({
+    start: 0, end: 'max', onUpdate: (self) => {
+      const y = self.scroll();
+      if (y < 120 || self.direction === -1) nav.classList.remove('is-hidden');
+      else if (self.direction === 1 && y > 500) nav.classList.add('is-hidden');
     },
   });
-  render(0);
-  return () => {
-    introTween.kill(); tween.scrollTrigger?.kill(); tween.kill();
-    [trace, echo].forEach((e) => { e.style.strokeDasharray = ''; e.style.strokeDashoffset = ''; });
-    deep.setAttribute('transform', `translate(0 ${b0})`);
-    grads.forEach((g) => { g.setAttribute('y1', String(b0)); g.setAttribute('y2', String(b0 + 1)); });
-    head.style.opacity = '0'; nodes.forEach((n) => (n.style.opacity = ''));
-    phrases.forEach((el) => (el.style.opacity = '')); copy.style.opacity = ''; copy.style.transform = ''; cue.style.opacity = '';
-    setTone('paper');
-  };
 }
 
-/* ---- premise reading band, evidence settle ---- */
-function subtle() {
-  const tl: gsap.core.Tween[] = [];
-  qa('.premise__text .line').forEach((el) => {
-    tl.push(gsap.fromTo(el, { opacity: 0.28 }, { opacity: 1, ease: 'none', scrollTrigger: { trigger: el, start: 'top 82%', end: 'top 55%', scrub: 0.3 } }));
+/* ---------------------------------------------------------------- opening */
+function initHero() {
+  const lines = qa('.hero__line [data-i]');
+  const intro = qa('.hero [data-intro]').filter((el) => !el.classList.contains('hero__line'));
+  const rows = qa('.index__row');
+  const fill = q('.index__trace-fill')!;
+  const grid = q('.hero__grid')!, glow1 = q('.hero__glow .g1')!, glow2 = q('.hero__glow .g2')!;
+  const hero = q('.hero')!;
+  const nodeAt = (i: number) => (rows.length > 1 ? (i + 0.5) / rows.length : 1);   // fill fraction at which node i is reached
+  // The trace fills 0 -> 1 across the nodes; rows below the current fill light up.
+  let drawn = 0;
+  const paint = (f: number) => {
+    drawn = f;
+    gsap.set(fill, { scaleY: f });
+    rows.forEach((r, i) => r.classList.toggle('is-lit', f >= (i === 0 ? 0.001 : i / (rows.length - 1)) - 0.001));
+  };
+
+  gsap.set(lines, { yPercent: 105, y: 0 });
+  gsap.set(intro, { opacity: 0, y: 24 });
+  gsap.set(rows, { opacity: 0, x: 18 });
+  paint(0);
+  root.classList.add('ready');
+
+  const tl = gsap.timeline({ defaults: { ease: EASE }, delay: 0.1 });
+  tl.to(lines, { yPercent: 0, duration: 1.15, stagger: 0.11 }, 0)
+    .to(intro, { opacity: 1, y: 0, duration: 1, stagger: STAGGER }, 0.35)
+    .to(rows, { opacity: 1, x: 0, duration: 0.9, stagger: STAGGER }, 0.5)
+    .to({ f: 0 }, { f: 0.08, duration: 0.9, ease: 'power2.inOut', onUpdate() { paint(Math.max(drawn, (this.targets()[0] as { f: number }).f)); } }, 0.9);
+
+  // Scroll: the trace carries on down the index while the first light scene rises over the hero.
+  // The curtain covers the index at roughly 0.55 of this range, so the trace completes by 0.45.
+  const travel = () => hero.getBoundingClientRect().height;
+  ScrollTrigger.create({
+    start: 0, end: () => travel(), scrub: true, invalidateOnRefresh: true,
+    onUpdate: (self) => {
+      const p = self.progress;
+      if (tl.isActive() && p < 0.01) return;
+      paint(Math.max(0.08, clamp01(p / 0.42)));
+      if (!lite) {
+        gsap.set(grid, { y: -p * 36, scale: 1 - p * 0.05, opacity: 1 - p * 0.75, transformOrigin: '50% 0%' });
+        gsap.set(glow1, { y: p * 80 }); gsap.set(glow2, { y: -p * 50 });
+      }
+    },
   });
-  qa('.evidence').forEach((el) => {
-    tl.push(gsap.fromTo(el, { y: 28, scale: 1.03 }, { y: 0, scale: 1, ease: 'power1.out', scrollTrigger: { trigger: el, start: 'top 92%', end: 'top 58%', scrub: 0.5 } }));
-  });
-  return () => tl.forEach((t) => { t.scrollTrigger?.kill(); t.kill(); gsap.set(t.targets(), { clearProps: 'all' }); });
-}
+  void nodeAt;
 
-/* ---- Pwndbg: seven flags become seven subcommands (each old option -> the subcommand of the same name) ---- */
-function anatomy(pinned: boolean) {
-  const fig = q('.cym')!;
-  const oldLis = qa<HTMLElement>('.cym__col--old li', fig), newLis = qa<HTMLElement>('.cym__col--new li', fig);
-  const svgT = q<SVGSVGElement>('.cym__traces', fig)!, paths = qa<SVGPathElement>('.cym__trace', svgT);
-  const before = q('.cym__usage--before', fig)!, afterRow = q('.cym__usage--after', fig)!, afterCode = q<HTMLElement>('code', afterRow)!;
-  const added = q('.cym__added', fig)!;
-  const N = paths.length; const lens: number[] = [];
-  const newByRow = new Map(newLis.map((li) => [+li.dataset.row!, li]));
-
-  const layout = () => {
-    const r = svgT.getBoundingClientRect(); const w = r.width, h = r.height;
-    if (!w || !h) return;
-    svgT.setAttribute('viewBox', `0 0 ${w.toFixed(1)} ${h.toFixed(1)}`); svgT.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    paths.forEach((p, i) => {
-      const y1 = ((i + 0.5) * h) / N, y2 = ((+p.dataset.to! + 0.5) * h) / N;
-      p.setAttribute('d', `M 0 ${y1.toFixed(1)} C ${(w * 0.58).toFixed(1)} ${y1.toFixed(1)} ${(w * 0.42).toFixed(1)} ${y2.toFixed(1)} ${w.toFixed(1)} ${y2.toFixed(1)}`);
-      lens[i] = p.getTotalLength(); p.style.strokeDasharray = `${lens[i]}`;
-    });
-  };
-  const start = (i: number) => 0.1 + i * 0.075;
-  const render = (p: number) => {
-    paths.forEach((path, i) => {
-      const t = ease(clamp01((p - start(i)) / 0.14));
-      path.style.strokeDashoffset = String((lens[i] ?? 0) * (1 - t));
-      const on = t > 0 && t < 1;
-      const nl = newByRow.get(i)!, ol = oldLis[i];
-      ol.classList.toggle('is-on', on); nl.classList.toggle('is-on', on);
-      ol.style.opacity = String(1 - 0.45 * clamp01((p - start(i) - 0.1) / 0.06));
-      const o = clamp01((p - start(i) - 0.08) / 0.06);
-      nl.style.opacity = String(o); nl.style.transform = `translate3d(${((1 - o) * -14).toFixed(1)}px,0,0)`;
-    });
-    before.style.opacity = String(1 - 0.55 * clamp01((p - 0.66) / 0.1));
-    afterRow.style.opacity = String(clamp01((p - 0.64) / 0.05));
-    afterCode.style.clipPath = `inset(0 ${((1 - clamp01((p - 0.68) / 0.12)) * 100).toFixed(1)}% 0 0)`;
-    added.style.opacity = String(clamp01((p - 0.82) / 0.1));
-  };
-  const reset = () => {
-    paths.forEach((pa) => { pa.style.strokeDasharray = ''; pa.style.strokeDashoffset = ''; });
-    [...oldLis, ...newLis].forEach((li) => { li.style.opacity = ''; li.style.transform = ''; li.classList.remove('is-on'); });
-    [before, afterRow, added].forEach((e) => ((e as HTMLElement).style.opacity = '')); afterCode.style.clipPath = '';
-  };
-
-  layout();
-  const proxy = { p: 0 };
-  let tween: gsap.core.Tween;
-  if (pinned) {
-    root.classList.add('has-pin-anatomy');
-    tween = gsap.to(proxy, {
-      p: 1, ease: 'none', onUpdate: () => render(Math.min(1, proxy.p / 0.8)),   // done at 80% of the pin; then the paper curtain rises
-      scrollTrigger: { trigger: '.anatomy', start: 'top top', end: () => `+=${Math.round(window.innerHeight * 3)}`, pin: '.anatomy__stage', scrub: 1, anticipatePin: 1, invalidateOnRefresh: true, refreshPriority: 1, onRefresh: () => { layout(); render(Math.min(1, proxy.p / 0.8)); } },
-    });
-  } else {
-    tween = gsap.to(proxy, {
-      p: 1, ease: 'none', onUpdate: () => render(proxy.p),
-      scrollTrigger: { trigger: fig, start: 'top 88%', end: 'bottom 45%', scrub: 0.8, onRefresh: () => { layout(); render(proxy.p); } },
-    });
+  // Gentle pointer response on the glow (mouse only).
+  if (!coarse && !lite && !reduced) {
+    const x1 = gsap.quickTo(glow1, 'x', { duration: 1.4, ease: 'power3.out' }), y1 = gsap.quickTo(glow1, 'yPercent', { duration: 1.4, ease: 'power3.out' });
+    hero.addEventListener('pointermove', (e) => { const r = hero.getBoundingClientRect(); x1(((e.clientX - r.left) / r.width - 0.5) * -60); y1(((e.clientY - r.top) / r.height - 0.5) * -8); });
   }
-  render(0);
-  return () => { tween.scrollTrigger?.kill(); tween.kill(); root.classList.remove('has-pin-anatomy'); reset(); layout(); };
 }
 
-/* ---- toolkit: a tracer runs down the spine; groups reveal with a restrained stagger (reversible) ---- */
-function toolkit() {
-  const run = q('.toolkit__groups')!;
-  const made: gsap.core.Tween[] = [];
-  run.style.setProperty('--run', '100');
-  made.push(gsap.to(run, { '--run': 0, ease: 'none', scrollTrigger: { trigger: run, start: 'top 78%', end: 'bottom 85%', scrub: 0.6 } }));
-  qa('.tgroup').forEach((g) => {
-    const items = qa('.tool', g), tick = q('.tgroup__node', g)!;
-    gsap.set(items, { opacity: 0, y: 16 });
-    made.push(gsap.to(items, { opacity: 1, y: 0, duration: 0.55, ease: 'power2.out', stagger: 0.07, scrollTrigger: { trigger: g, start: 'top 82%', toggleActions: 'play none none reverse' } }));
-    gsap.set(tick, { scaleX: 0, transformOrigin: '0 50%' });
-    made.push(gsap.to(tick, { scaleX: 1, duration: 0.4, ease: 'power2.out', scrollTrigger: { trigger: g, start: 'top 82%', toggleActions: 'play none none reverse' } }));
+/* ---------------------------------------------------------------- shared reveals */
+function initReveals() {
+  qa('[data-reveal-group]').forEach((g) => {
+    const items = qa('[data-reveal-item]', g);
+    if (!items.length) return;
+    gsap.set(items, { opacity: 0, y: 28 });
+    ScrollTrigger.create({ trigger: g, start: 'top 88%', once: true, onEnter: () => gsap.to(items, { opacity: 1, y: 0, duration: 1, ease: EASE, stagger: STAGGER, clearProps: 'transform' }) });
   });
-  return () => { made.forEach((t) => { t.scrollTrigger?.kill(); t.kill(); }); run.style.removeProperty('--run'); gsap.set([...qa('.tool'), ...qa('.tgroup__node')], { clearProps: 'all' }); };
-}
-
-/* ---- closing: the route to the contact links is drawn as you arrive ---- */
-function closing() {
-  const route = q('.closing__route')!, head = q('.closing__head')!;
-  route.style.setProperty('--run', '100');
-  const a = gsap.to(route, { '--run': 0, ease: 'none', scrollTrigger: { trigger: route, start: 'top 88%', end: 'bottom 97%', scrub: 0.6 } });
-  const b = gsap.fromTo(head, { opacity: 0.2, y: 24 }, { opacity: 1, y: 0, ease: 'power1.out', scrollTrigger: { trigger: head, start: 'top 92%', end: 'top 55%', scrub: 0.5 } });
-  return () => { [a, b].forEach((t) => { t.scrollTrigger?.kill(); t.kill(); }); route.style.removeProperty('--run'); gsap.set(head, { clearProps: 'all' }); };
-}
-
-const mm = gsap.matchMedia();
-if (!lite) {
-  mm.add({ ok: '(prefers-reduced-motion: no-preference)', full: '(min-width: 1024px)', mid: '(min-width: 641px) and (max-width: 1023px)', portrait: '(orientation: portrait)' }, (ctx) => {
-    const c = ctx.conditions as Record<string, boolean>;
-    if (!c.ok) return;
-    const undo = [hero(c.full ? 2.5 : c.mid ? 2 : 1.8, c.portrait), subtle(), toolkit(), closing()];
-    return () => undo.forEach((u) => u());
+  // Media frames: a controlled clip-path reveal that is removed afterwards, so nothing is ever cropped at rest.
+  if (!lite) qa('[data-frame]').forEach((f) => {
+    gsap.set(f, { clipPath: 'inset(9% 5% 9% 5% round 28px)', opacity: 0.001 });
+    ScrollTrigger.create({ trigger: f, start: 'top 90%', once: true, onEnter: () => gsap.to(f, { clipPath: 'inset(0% 0% 0% 0% round 24px)', opacity: 1, duration: 1.3, ease: EASE, clearProps: 'clipPath,opacity' }) });
   });
-  mm.add({ ok: '(prefers-reduced-motion: no-preference)', desk: '(min-width: 900px)' }, (ctx) => {
-    const c = ctx.conditions as Record<string, boolean>;
-    if (!c.ok) return;
-    return anatomy(c.desk);
+  else qa('[data-frame]').forEach((f) => { gsap.set(f, { opacity: 0 }); ScrollTrigger.create({ trigger: f, start: 'top 90%', once: true, onEnter: () => gsap.to(f, { opacity: 1, duration: 0.6, clearProps: 'opacity' }) }); });
+  // Subtle depth on screenshots.
+  if (!lite) qa('[data-parallax]').forEach((el) => {
+    const n = (parseFloat(el.dataset.parallax || '8') || 8) * (coarse ? 0.5 : 1);
+    gsap.fromTo(el, { y: -n }, { y: n, ease: 'none', scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true } });
   });
 }
 
-root.classList.add('js-ready');
-document.fonts?.ready.then(() => ScrollTrigger.refresh());
-window.addEventListener('load', () => ScrollTrigger.refresh());
+/* ---------------------------------------------------------------- CrawlX: worker-pool illustration (runs only while visible) */
+function initPool() {
+  const pool = q('.pool'); if (!pool) return;
+  const workers = qa('.pool__w', pool), outs = qa('.pool__out i', pool), queue = qa('.pool__queue span', pool);
+  let timer = 0, n = 0;
+  const step = () => {
+    const w = workers[(n * 3) % workers.length];
+    w.classList.add('is-busy'); setTimeout(() => w.classList.remove('is-busy'), 900);
+    gsap.fromTo(queue[n % queue.length], { opacity: 0.2, x: 0 }, { opacity: 1, x: 8, duration: 0.5, yoyo: true, repeat: 1, ease: 'power2.inOut' });
+    if (n % 3 === 2) { const k = Math.floor(n / 3) % (outs.length + 1); outs.forEach((o, i) => o.classList.toggle('is-on', i < k)); }
+    n++;
+  };
+  ScrollTrigger.create({ trigger: pool, start: 'top 95%', end: 'bottom 5%', onToggle: (s) => { clearInterval(timer); if (s.isActive) timer = window.setInterval(step, 520); } });
+}
+
+/* ---------------------------------------------------------------- Active Directory lab */
+function initLab() {
+  const fig = q('.labmap'); if (!fig) return;
+  const nodes = qa('.node', fig), bus = q('.labmap__nodes', fig)!, pulse = q('.labmap__pulse', fig)!;
+  gsap.set(nodes, { opacity: 0, y: 26 });
+  bus.style.setProperty('--bus', '0');
+  const point = (i: number) => {
+    const s = q('.node__stub', nodes[i])!.getBoundingClientRect(), f = fig.getBoundingClientRect();
+    return { x: s.left - f.left - fig.clientLeft + 1, y: s.top - f.top - fig.clientTop + 1 };
+  };
+  let loop: gsap.core.Tween | null = null;
+  const startPulse = () => {
+    loop?.kill();
+    const a = point(0), b = point(1);
+    gsap.set(pulse, { x: a.x, y: a.y, opacity: 0 });
+    loop = gsap.timeline({ repeat: -1, repeatDelay: 1.2 })
+      .to(pulse, { opacity: 1, duration: 0.25 })
+      .to(pulse, { x: b.x, y: b.y, duration: 1.1, ease: 'power2.inOut' }, '<')
+      .to(pulse, { opacity: 0, duration: 0.3 }, '-=0.3') as unknown as gsap.core.Tween;
+  };
+  ScrollTrigger.create({
+    trigger: fig, start: 'top 80%', once: true,
+    onEnter: () => {
+      // README build order: DC01, WIN10-1, then the planned Kali machine.
+      gsap.to(bus, { '--bus': 1, duration: 0.9, ease: EASE });
+      gsap.to(nodes, { opacity: 1, y: 0, duration: 1, ease: EASE, stagger: 0.16, clearProps: 'transform', onComplete: () => { if (!reduced) startPulse(); } });
+    },
+  });
+  ScrollTrigger.create({ trigger: fig, start: 'top 100%', end: 'bottom 0%', onToggle: (s) => { if (loop) (s.isActive ? loop.resume() : loop.pause()); } });
+  addEventListener('resize', () => { if (loop) startPulse(); });
+}
+
+/* ---------------------------------------------------------------- Pwndbg: old options resolve into subcommands (about a second, no pin) */
+function initCymbol() {
+  const cym = q('[data-cym]'); if (!cym) return;
+  const rows = qa('.cym__row', cym), links = rows.map((r) => q('.cym__link i', r)!), news = rows.map((r) => q('.cym__new code', r)!);
+  gsap.set(links, { scaleX: 0 }); gsap.set(news, { opacity: 0.2, x: -8 });
+  ScrollTrigger.create({
+    trigger: q('.cym__table', cym)!, start: 'top 80%', once: true,
+    onEnter: () => {
+      const tl = gsap.timeline({ defaults: { ease: EASE } });
+      rows.forEach((r, i) => {
+        tl.to(links[i], { scaleX: 1, duration: 0.55 }, i * 0.1)
+          .to(news[i], { opacity: 1, x: 0, duration: 0.6 }, i * 0.1 + 0.18)
+          .add(() => r.classList.add('is-done'), i * 0.1 + 0.5);
+      });
+    },
+  });
+}
+
+/* ---------------------------------------------------------------- toolkit: tools <-> projects, with a drawn trace (interaction; works with or without motion) */
+function initKit() {
+  const kit = q('.kit'), wrap = q('[data-kit]'); if (!kit || !wrap) return;
+  const svg = q<SVGSVGElement>('.kit__trace', wrap)!;
+  const tools = qa<HTMLButtonElement>('.tool', wrap), chips = qa<HTMLAnchorElement>('.chip', wrap);
+  const ns = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = '<defs><linearGradient id="kit-grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#FF6BB5"/></linearGradient></defs>';
+  const idsOf = (t: HTMLElement) => (t.dataset.projects || '').split(' ').filter(Boolean);
+  let locked: HTMLButtonElement | null = null;
+
+  const draw = (pairs: [HTMLElement, HTMLElement][]) => {
+    qa('path', svg).forEach((p) => p.remove());
+    if (!desktop() || !pairs.length) return;
+    const w = wrap.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${w.width} ${w.height}`);
+    q('#kit-grad', svg)?.setAttribute('x2', String(w.width));
+    pairs.forEach(([t, c]) => {
+      const a = t.getBoundingClientRect(), b = c.getBoundingClientRect();
+      const x1 = a.right - w.left, y1 = a.top + a.height / 2 - w.top, x2 = b.left - w.left, y2 = b.top + b.height / 2 - w.top;
+      const dx = Math.max(40, (x2 - x1) / 2);
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
+      svg.appendChild(path);
+      const len = path.getTotalLength();
+      if (reduced) return;
+      path.style.strokeDasharray = `${len}`; path.style.strokeDashoffset = `${len}`;
+      gsap.to(path, { strokeDashoffset: 0, duration: 0.7, ease: EASE });
+    });
+  };
+  const show = (activeTools: HTMLElement[], activeChips: HTMLElement[]) => {
+    kit.classList.toggle('has-active', activeTools.length + activeChips.length > 0);
+    tools.forEach((t) => t.classList.toggle('is-on', activeTools.includes(t)));
+    chips.forEach((c) => c.classList.toggle('is-on', activeChips.includes(c)));
+    const pairs: [HTMLElement, HTMLElement][] = [];
+    activeTools.forEach((t) => activeChips.forEach((c) => { if (idsOf(t).includes(c.dataset.id!)) pairs.push([t, c]); }));
+    draw(pairs);
+  };
+  const forTool = (t: HTMLButtonElement) => show([t], chips.filter((c) => idsOf(t).includes(c.dataset.id!)));
+  const forChip = (c: HTMLAnchorElement) => show(tools.filter((t) => idsOf(t).includes(c.dataset.id!)), [c]);
+  const rest = () => (locked ? forTool(locked) : show([], []));
+
+  tools.forEach((t) => {
+    t.addEventListener('pointerenter', () => forTool(t)); t.addEventListener('focus', () => forTool(t));
+    t.addEventListener('pointerleave', rest); t.addEventListener('blur', rest);
+    t.addEventListener('click', () => {
+      locked = locked === t ? null : t;
+      tools.forEach((x) => x.setAttribute('aria-pressed', String(x === locked)));
+      rest(); if (locked) forTool(locked);
+    });
+  });
+  chips.forEach((c) => {
+    c.addEventListener('pointerenter', () => forChip(c)); c.addEventListener('focus', () => forChip(c));
+    c.addEventListener('pointerleave', rest); c.addEventListener('blur', rest);
+  });
+  addEventListener('resize', rest);
+}
+
+/* ---------------------------------------------------------------- experience timeline */
+function initTimeline() {
+  const tlEl = q('[data-timeline]'); if (!tlEl) return;
+  const fill = q('.timeline__fill', tlEl)!, entries = qa('[data-tl]', tlEl);
+  gsap.set(fill, { scaleY: 0 });
+  gsap.to(fill, { scaleY: 1, ease: 'none', scrollTrigger: { trigger: tlEl, start: 'top 68%', end: 'bottom 62%', scrub: true } });
+  entries.forEach((e) => {
+    const parts = qa(':scope > :not(.tl__dot)', e);
+    gsap.set(parts, { opacity: 0, y: 22 });
+    ScrollTrigger.create({
+      trigger: e, start: 'top 72%',
+      onEnter: () => { e.classList.add('is-on'); gsap.to(parts, { opacity: 1, y: 0, duration: 0.9, ease: EASE, stagger: 0.06, overwrite: true, clearProps: 'transform' }); },
+      onLeaveBack: () => e.classList.remove('is-on'),
+    });
+  });
+}
+
+/* ---------------------------------------------------------------- contact: a signal travels the rail to the channel in focus */
+function initContact() {
+  const box = q('[data-channels]'); if (!box) return;
+  const rows = qa('.channel', box), signal = q('.channels__signal', box)!, fill = q('.channels__fill', box)!;
+  const centre = (i: number) => rows[i].offsetTop + rows[i].offsetHeight / 2;
+  let active = 0;
+  const go = (i: number, instant = false) => {
+    active = i;
+    rows.forEach((r, k) => r.classList.toggle('is-active', k === i));
+    if (instant || reduced) gsap.set(signal, { y: centre(i) }); else gsap.to(signal, { y: centre(i), duration: 0.7, ease: EASE, overwrite: true });
+  };
+  rows.forEach((r, i) => { r.addEventListener('pointerenter', () => go(i)); r.addEventListener('focusin', () => go(i)); });
+  box.addEventListener('pointerleave', () => go(0));
+  box.addEventListener('focusout', (e) => { if (!box.contains((e as FocusEvent).relatedTarget as Node)) go(0); });
+  addEventListener('resize', () => go(active, true));
+  gsap.set(signal, { y: centre(0), opacity: reduced ? 1 : 0 });
+  rows.forEach((r, i) => r.classList.toggle('is-active', i === 0));
+  if (reduced) return;
+  gsap.set(fill, { scaleY: 0 }); gsap.set(rows, { opacity: 0, y: 18 });
+  ScrollTrigger.create({
+    trigger: box, start: 'top 82%', once: true,
+    onEnter: () => {
+      const tl = gsap.timeline({ defaults: { ease: EASE } });
+      tl.to(fill, { scaleY: 1, duration: 1.3 }, 0)
+        .to(rows, { opacity: 1, y: 0, duration: 0.9, stagger: STAGGER, clearProps: 'transform' }, 0.15)
+        .fromTo(signal, { y: 0, opacity: 1 }, { y: centre(0), opacity: 1, duration: 1.2 }, 0)
+        .add(() => go(0, true));
+    },
+  });
+}
+
+function initCopy() {
+  const btn = q<HTMLButtonElement>('[data-copy]'), status = q('[data-copy-status]'); if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const text = btn.dataset.copy || '';
+    try { await navigator.clipboard.writeText(text); }
+    catch { const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch { /* ignore */ } ta.remove(); }
+    const old = btn.textContent; btn.textContent = 'Copied'; if (status) status.textContent = 'Email address copied';
+    setTimeout(() => { btn.textContent = old; if (status) status.textContent = ''; }, 1800);
+  });
+}
+
+/* ---------------------------------------------------------------- boot */
+initKit(); initCopy();
+if (reduced) {
+  root.classList.add('ready');
+  initNav(); initContact();
+  qa<HTMLElement>('.index__row').forEach((r) => r.classList.add('is-lit'));
+} else {
+  initNav(); initHero(); initReveals(); initPool(); initLab(); initCymbol(); initTimeline(); initContact();
+}
+const refresh = () => ScrollTrigger.refresh();
+document.fonts?.ready.then(refresh);
+let rt = 0;
+qa<HTMLImageElement>('img').forEach((im) => { if (!im.complete) im.addEventListener('load', () => { clearTimeout(rt); rt = window.setTimeout(refresh, 120); }, { once: true }); });
+addEventListener('load', () => setTimeout(refresh, 200));
+if (location.hash.length > 1) setTimeout(() => scrollToId(location.hash, true), 400);

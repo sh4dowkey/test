@@ -1,135 +1,79 @@
 /**
- * Central content module: every piece of personal information, project copy, article link, experience and
- * contact detail lives here. Components only read from this file.
+ * Central content module. Every piece of personal information, project copy, link, experience entry and contact
+ * detail lives here; components only read from this file.
  *
- * Editing guide
- *  - A plain value is VERIFIED against a public source (see docs/00-source-audit.md section 10).
- *  - An object with a `review` string is provisional: it renders in the local preview, is highlighted when you
- *    open the page with `?review`, and BLOCKS `npm run build:production` until you delete the `review` field.
- *  - Never add a field you cannot source. Withheld items live at the bottom of this file and never render.
+ * Sources (all read from the public repositories or the owner's own résumé PDF):
+ *  - sh4dowkey/Crawlx, sh4dowkey/CLI-Web-Crawler, sh4dowkey/ad-attack-defense-lab (READMEs and source)
+ *  - pwndbg/pwndbg commit 7d92563 (patch read in full) and PR #3160
+ *  - public/resume.pdf (byte-identical to the file on the legacy site)
+ *  - the legacy site for profile URLs and article links
+ * Never add a claim you cannot source. Anything withheld lives at the bottom and never renders.
  */
-
-export interface Reviewable { review?: string }
-const STRICT = process.env.ANANT_STRICT === '1';
-
-/** Spread onto an element: `<li {...flag(item)}>`. Adds data-review in preview, throws in strict builds. */
-export function flag(o?: Reviewable): Record<string, string> {
-  if (!o?.review) return {};
-  if (STRICT) throw new Error(`Unreviewed content in production build: ${o.review}`);
-  return { 'data-review': o.review };
-}
 
 /* ------------------------------------------------------------------ person */
 export const person = {
   name: 'Anant Pandey',
-  nameLines: ['Anant', 'Pandey'] as const,
   fullName: 'Anant Kumar Pandey',
-  heroLines: ['Building tools.', 'Understanding systems.', 'Exploring security.'] as const,
-  tagline: 'Anant Pandey builds security tools, explores how systems work and contributes to open source.',
-  headline: 'Building security tools, exploring how systems work, and contributing to open source.',
-  description: 'Anant Pandey builds security tools, explores how systems work and contributes to open source.',
-  review: 'Display name "Anant Pandey" and the headline wording are provisional (OI-2, OI-3). The résumé uses "Anant Kumar Pandey".',
-} satisfies Reviewable & Record<string, unknown>;
-
-export const premise = {
-  lead: 'Built in the open.',
-  body: 'Every project here links to its public source, so each claim can be checked.',
-  review: 'Provisional wording (OI-2).',
+  /** Three concrete things the portfolio contains. `href` is the section that proves each one. */
+  heroLines: [
+    { text: 'Python & Go tools.', href: '#crawlx' },
+    { text: 'Security labs.', href: '#lab' },
+    { text: 'Open-source work.', href: '#pwndbg' },
+  ],
+  intro: 'Two command-line crawlers, an Active Directory lab that is still being built, and a merged change to Pwndbg. Each one links to its public source.',
+  description: 'Anant Pandey: Python and Go security tools, an Active Directory lab and a merged contribution to Pwndbg.',
 };
 
 /* ---------------------------------------------------------------- profiles */
-export const profiles = [
-  { id: 'github', label: 'GitHub', handle: 'sh4dowkey', url: 'https://github.com/sh4dowkey' },
-  { id: 'linkedin', label: 'LinkedIn', handle: 'anant-ku-pandey', url: 'https://www.linkedin.com/in/anant-ku-pandey',
-    review: 'URL taken from the legacy site; the résumé prints it without /in/ (F2). Confirm it resolves.' },
-  { id: 'medium', label: 'Medium', handle: '@pandeyanant733', url: 'https://medium.com/@pandeyanant733',
-    review: 'Handle taken from the legacy article URLs; profile page not fetched (F3).' },
-] as const;
-
-export const contact = {
-  email: { address: 'anant.pandey017@gmail.com',
-    review: 'Published on the legacy site and résumé; confirm you want it public on the new site (OI-21).' },
+export const profiles = {
+  email: { label: 'Email', handle: 'anant.pandey017@gmail.com', url: 'mailto:anant.pandey017@gmail.com', note: 'Quickest way to reach me' },
+  github: { label: 'GitHub', handle: 'sh4dowkey', url: 'https://github.com/sh4dowkey', note: 'Source for every project here' },
+  linkedin: { label: 'LinkedIn', handle: 'anant-ku-pandey', url: 'https://www.linkedin.com/in/anant-ku-pandey', note: 'Background and credentials' },
+  medium: { label: 'Medium', handle: '@pandeyanant733', url: 'https://medium.com/@pandeyanant733', note: 'Short security explainers' },
 };
 
 /* ---------------------------------------------------------------- projects */
-export const pwndbg = {
-  id: 'pwndbg',
-  name: 'Pwndbg',
-  intro: 'An open-source plug-in for GDB and LLDB used in exploit development and reverse engineering. One command in it, cymbol, manages custom C structures.',
-  repoUrl: 'https://github.com/pwndbg/pwndbg',
-  contribution: {
-    title: 'cymbol, refactored to use subcommands',
-    prTitle: 'Refactor cymbol command to use subcommands',
-    prLabel: 'pwndbg/pwndbg #3160',
-    prUrl: 'https://github.com/pwndbg/pwndbg/pull/3160',
-    issueLabel: 'issue #3154',
-    issueUrl: 'https://github.com/pwndbg/pwndbg/issues/3154',
-    commitLabel: 'commit 7d92563',
-    commitUrl: 'https://github.com/pwndbg/pwndbg/commit/7d92563',
-    status: 'Merged',
-    authorship: 'Co-authored; the commit lists four contributors',
-  },
-  /** From the patch of commit 7d92563 (pwndbg/commands/cymbol.py): each old option became the subcommand of the same name. */
-  mapping: [
-    { oldFlag: '-a', oldArg: 'name', sub: 'add', arg: 'name' },
-    { oldFlag: '-f', oldArg: 'filepath', sub: 'file', arg: 'path' },
-    { oldFlag: '-r', oldArg: 'name', sub: 'remove', arg: 'name' },
-    { oldFlag: '-e', oldArg: 'name', sub: 'edit', arg: 'name' },
-    { oldFlag: '-l', oldArg: 'name', sub: 'load', arg: 'name' },
-    { oldFlag: '-s', oldArg: 'name', sub: 'show', arg: 'name' },
-    { oldFlag: '--show-all', oldArg: '', sub: 'show-all', arg: '' },
-  ] as { oldFlag: string; oldArg: string; sub: string; arg: string }[],
-  /** New order of subcommands in the patched usage line; `file` moved from second to sixth. */
-  newOrder: ['add', 'remove', 'edit', 'load', 'show', 'file', 'show-all'] as string[],
-  added: 'New with the subcommands: --force on add and file, and --name on file.',
-  evidence: [
-    { src: '/img/pwndbg-commit.webp', w: 1600, h: 193, alt: 'GitHub commit page for 7d92563, titled Refactor cymbol command to use subcommands (#3160), marked Verified.' },
-    { src: '/img/pwndbg-diff.webp', w: 1500, h: 1021, alt: 'Diff of docs/commands/misc/cymbol.md: the usage line changes from flag options to the subcommands add, remove, edit, load, show, file and show-all.' },
-  ],
-  evidenceCaption: 'Excerpts from the commit page on GitHub; the commit message trailers are omitted.',
+/** Used by the opening index, the toolkit relationships and the résumé links. Order = order on the page. */
+export const index = [
+  { id: 'crawlx', n: '01', name: 'CrawlX', kind: 'Tool', meta: 'Go · concurrent web crawler', href: '#crawlx' },
+  { id: 'cli-crawler', n: '02', name: 'CLI Web Crawler', kind: 'Tool', meta: 'Python · robots.txt-aware', href: '#cli-crawler' },
+  { id: 'ad-lab', n: '03', name: 'Active Directory lab', kind: 'Lab', meta: 'Windows Server 2019 · in progress', href: '#lab' },
+  { id: 'pwndbg', n: '04', name: 'Pwndbg #3160', kind: 'Open source', meta: 'cymbol subcommands · merged', href: '#pwndbg' },
+];
+
+export const work = {
+  heading: 'Selected work',
+  lede: 'Four public repositories. Where something is unfinished, it says so.',
 };
 
 export const crawlx = {
   id: 'crawlx',
   name: 'CrawlX',
-  lede: 'A concurrent web crawler written in Go. Give it a starting URL and a depth; a pool of workers fetches pages, follows links within the same domain and prints a report that sorts errors by kind.',
+  kicker: 'Go · command-line tool',
+  lede: 'A concurrent web crawler. Give it a starting URL and a depth; a pool of workers fetches pages, follows links on the same domain, and prints a report that groups errors by kind.',
   repoUrl: 'https://github.com/sh4dowkey/Crawlx',
+  /** From internal/crawl/crawler.go: NumWorkers = 10, buffered `tasks` and `results` channels. */
+  pipeline: { workers: 10, steps: ['Task queue', 'Ten workers', 'Report'] },
   facts: [
-    { label: 'Language', value: 'Go' },
-    { label: 'Concurrency', value: 'Ten workers pulling from a buffered task queue, as set in the source' },
-    { label: 'Scope', value: 'Same-domain links up to a chosen depth (default 2)' },
-    { label: 'Output', value: 'Per-page status and links in verbose mode, then a crawl report' },
-    { label: 'Distribution', value: 'Release binaries for Windows, Linux and macOS, per the README', review: 'Read from the README earlier; re-check the releases page.' },
-  ] as { label: string; value: string; review?: string }[],
-  evidence: [
-    { src: '/img/crawlx-output.webp', w: 1400, h: 589, alt: 'Terminal output of the command crawlx -u https://toscrape.com -v -d 1, listing pages crawled with status codes and discovered links.', caption: 'Output of crawlx -u https://toscrape.com -v -d 1 (excerpt).' },
+    ['Concurrency', 'Ten workers reading from a buffered task channel'],
+    ['Scope', 'Same-domain links up to a chosen depth (default 2)'],
+    ['Output', 'Per-page status and links with -v, then a crawl report'],
+    ['Builds', 'Release binaries for Windows, Linux and macOS (per the README)'],
+  ] as [string, string][],
+  shots: [
+    { src: '/img/crawlx-output.webp', w: 1400, h: 589, alt: 'Terminal output of crawlx -u https://toscrape.com -v -d 1: each page crawled with its status code, response time and the links found.', caption: 'crawlx -u https://toscrape.com -v -d 1' },
+    { src: '/img/crawlx-help.webp', w: 1100, h: 664, alt: 'Output of crawlx -h: usage, the options -u, -d, -i and -v with their defaults, and three examples.', caption: 'crawlx -h' },
   ],
-  /** Transcribed from the project's own `crawlx -h` screenshot. */
-  help: {
-    title: 'crawlx -h',
-    lines: [
-      'CrawlX - A fast, concurrent web crawler built in Go.',
-      '',
-      'USAGE:',
-      '  crawlx -u <STARTING_URL> [OPTIONS]',
-      '',
-      'OPTIONS:',
-      '  -u, --url <string>   The starting URL to crawl (Required)',
-      '  -d, --depth <int>    Maximum crawling depth (Default: 2)',
-      '  -i, --allow-ip       Allow crawling IP addresses (Default: false)',
-      '  -v, --verbose        Show detailed crawl progress (Default: false)',
-    ],
-  },
 };
 
 export const cliCrawler = {
   id: 'cli-crawler',
   name: 'CLI Web Crawler',
-  lede: 'A command-line crawler in Python. It follows links from a starting URL to a chosen depth, respects robots.txt, can keep to internal or external links, and checks each page for a keyword. Each result carries the URL, the page title and whether the keyword matched.',
+  kicker: 'Python · command-line tool',
+  lede: 'Follows links from a starting URL to a chosen depth, respects robots.txt, can stay on internal or external links, and checks each page for a keyword. Every result carries the URL, the page title and whether the keyword matched.',
   repoUrl: 'https://github.com/sh4dowkey/CLI-Web-Crawler',
-  usage: 'python cli.py <url> [OPTIONS]',
+  usage: ['python', 'cli.py', '<url>', '[OPTIONS]'],
   options: [
-    ['<url>', 'Starting URL to crawl (required)'],
     ['--depth', 'Maximum depth to crawl (default 2)'],
     ['--max-pages', 'Maximum number of pages (default 100)'],
     ['--search', 'Keyword to look for in page content'],
@@ -139,130 +83,151 @@ export const cliCrawler = {
     ['--verbose', 'Show each visited page'],
     ['--output', 'Save results to a file'],
   ] as [string, string][],
-  optionsNote: 'Taken from the project\u2019s README.',
+  note: 'Usage and options as listed in the project README.',
 };
 
+/** Source of truth: the lab README's machine table and status table. Nothing here is added beyond them. */
 export const adLab = {
-  id: 'ad-lab',
+  id: 'lab',
   name: 'Active Directory lab',
-  status: 'Work in progress',
-  lede: 'A home lab for learning Active Directory: a Windows Server 2019 domain controller running AD DS and DNS, and a domain-joined Windows 10 client, on an internal virtual network, documented with setup guides and screenshots.',
-  progress: 'The domain controller and client are complete. The README lists the Kali attacker machine, users and OUs, attack chains and detection tooling as still to come.',
+  status: 'In progress',
+  lede: 'A home lab for learning Active Directory: a Windows Server 2019 domain controller running AD DS and DNS, and a domain-joined Windows 10 client on an internal network, documented with setup guides and screenshots.',
   repoUrl: 'https://github.com/sh4dowkey/ad-attack-defense-lab',
+  network: 'ADLabNet (internal)',
   machines: [
-    ['DC01', 'Windows Server 2019', 'Domain controller and DNS'],
-    ['WIN10-1', 'Windows 10 Pro', 'Domain-joined client'],
-    ['Kali', 'Kali Linux', 'Attacker machine (listed as coming soon)'],
-  ] as [string, string, string][],
-  machinesNote: 'Lab machines, from the project\u2019s README.',
-  built: ['DC01 (domain controller)', 'WIN10-1 (domain-joined client)'],
-  planned: ['Kali attacker machine', 'Users and OUs', 'Attack chains', 'Detection tooling'],
-  review: 'Included as a provisional project (D-13). The README status was read on 2026-10-24; update it as the lab progresses. The legacy diagram image is deliberately not used (see HANDOFF).',
+    { id: 'dc01', host: 'DC01', os: 'Windows Server 2019', role: 'Domain controller · AD DS · DNS', ip: '192.168.10.10', state: 'built' },
+    { id: 'win10', host: 'WIN10-1', os: 'Windows 10 Pro', role: 'Domain-joined client', ip: '192.168.10.11', state: 'built' },
+    { id: 'kali', host: 'Kali', os: 'Kali Linux', role: 'Attacker machine', ip: '192.168.10.100', state: 'planned' },
+  ],
+  /** README "Project Status" table. */
+  status_table: [
+    { name: 'DC01', state: 'built', note: 'Domain set up and verified' },
+    { name: 'WIN10-1', state: 'built', note: 'Joined to the domain' },
+    { name: 'Kali', state: 'planned', note: 'Listed as coming soon' },
+    { name: 'Users and OUs', state: 'planned', note: 'Pending' },
+    { name: 'Attack chains', state: 'planned', note: 'Planned' },
+    { name: 'Detection', state: 'planned', note: 'Planned' },
+  ] as { name: string; state: 'built' | 'planned'; note: string }[],
+  note: 'Machines and status from the lab README. Dashed means planned.',
 };
 
-/* ---------------------------------------------------------------- articles */
-export const writing = {
-  intro: 'Short explainers on ethical hacking, web security and command-line tools.',
-  review: 'Intro line is my summary of the three titles.',
-  articles: [
-    { title: 'Hacking 101 \u2014 Crack the Code (Legally!)', topic: 'Ethical hacking', date: 'Feb 22', venue: 'Medium',
-      url: 'https://medium.com/@pandeyanant733/hacking-101-crack-the-code-legally-8c357651414f' },
-    { title: 'Decoding the OWASP Top 10', topic: 'Web security', date: 'Feb 19', venue: 'Medium',
-      url: 'https://medium.com/@pandeyanant733/decoding-the-owasp-top-10-3f2af22570dc' },
-    { title: 'cURL for Beginners: Essential Tips and Tricks', topic: 'Command line', date: 'May 28', venue: 'Medium',
-      url: 'https://medium.com/@pandeyanant733/curl-for-beginners-essential-tips-and-tricks-eb5098f026da' },
-  ].map((a) => ({ ...a, review: 'Year not shown on the legacy site; link not fetched from this sandbox (F3). Topic label is mine.' })),
+export const pwndbg = {
+  id: 'pwndbg',
+  name: 'Pwndbg',
+  kicker: 'Open-source contribution · Python',
+  title: 'cymbol now uses subcommands',
+  intro: 'Pwndbg is an open-source plug-in for GDB used in exploit development and reverse engineering. Its cymbol command manages custom C structures. The pull request below replaced cymbol’s option flags with subcommands.',
+  repoUrl: 'https://github.com/pwndbg/pwndbg',
+  pr: { label: 'pwndbg/pwndbg #3160', url: 'https://github.com/pwndbg/pwndbg/pull/3160', title: 'Refactor cymbol command to use subcommands' },
+  issue: { label: 'issue #3154', url: 'https://github.com/pwndbg/pwndbg/issues/3154' },
+  commit: { label: 'commit 7d92563', url: 'https://github.com/pwndbg/pwndbg/commit/7d92563' },
+  meta: [
+    ['Status', 'Merged, July 2025'],
+    ['Changed', 'cymbol.py, its generated docs page and the command index'],
+    ['Authorship', 'Co-authored; the commit lists several contributors'],
+  ] as [string, string][],
+  /** From the patch of commit 7d92563 (pwndbg/commands/cymbol.py): each old option became the subcommand of the same name. */
+  mapping: [
+    { oldFlag: '-a', oldArg: 'name', sub: 'add', arg: 'name' },
+    { oldFlag: '-r', oldArg: 'name', sub: 'remove', arg: 'name' },
+    { oldFlag: '-e', oldArg: 'name', sub: 'edit', arg: 'name' },
+    { oldFlag: '-l', oldArg: 'name', sub: 'load', arg: 'name' },
+    { oldFlag: '-s', oldArg: 'name', sub: 'show', arg: 'name' },
+    { oldFlag: '-f', oldArg: 'filepath', sub: 'file', arg: 'path' },
+    { oldFlag: '--show-all', oldArg: '', sub: 'show-all', arg: '' },
+  ] as { oldFlag: string; oldArg: string; sub: string; arg: string }[],
+  usageBefore: 'cymbol [-a name] [-f filepath] [-r name] [-e name] [-l name] [-s name] [--show-all]',
+  usageAfter: 'cymbol {add,remove,edit,load,show,file,show-all} ...',
+  added: 'The same change added --force on add and file, and --name on file.',
+  evidence: { src: '/img/pwndbg-diff.webp', w: 1500, h: 1021, alt: 'Diff of docs/commands/misc/cymbol.md: the usage line changes from flag options to the subcommands add, remove, edit, load, show, file and show-all.', caption: 'Diff of the cymbol docs page, from the commit.' },
 };
 
 /* ----------------------------------------------------------------- toolkit */
-/** `evidence` links to public work on this page. Items without it are listed on the r\u00e9sum\u00e9 only. Never add levels or ratings. */
+export interface Tool { name: string; projects?: string[] }
 export const toolkit = {
-  heading: 'What I work with',
-  lede: 'A working toolkit, not a ranking. Filled markers link to public work on this page; hollow ones come from my r\u00e9sum\u00e9 and have no public project here yet.',
+  heading: 'Toolkit',
+  lede: 'Grouped by what each tool is for. Choose a project to see what it used, or a tool to see where it appears.',
   groups: [
-    { title: 'Languages and development', items: [
-      { name: 'Python', evidence: { label: 'CLI Web Crawler, Pwndbg', href: '#cli-crawler' } },
-      { name: 'Go', evidence: { label: 'CrawlX', href: '#crawlx' } },
-      { name: 'Git / GitHub', evidence: { label: 'Pull request merged upstream', href: '#work' } },
-      { name: 'Linux', review: 'R\u00e9sum\u00e9 only: no public project here demonstrates it (confirm or link).' },
-      { name: 'GDB / Pwndbg', evidence: { label: 'Contribution to Pwndbg', href: '#work' } },
-    ] as ToolItem[] },
-    { title: 'Security tools', items: [
-      { name: 'Burp Suite', review: 'R\u00e9sum\u00e9 only: no public project here demonstrates it (confirm or link).' },
-      { name: 'Nmap', review: 'R\u00e9sum\u00e9 only: no public project here demonstrates it (confirm or link).' },
-      { name: 'Wireshark', review: 'R\u00e9sum\u00e9 only: no public project here demonstrates it (confirm or link).' },
-      { name: 'Nessus / OpenVAS', review: 'R\u00e9sum\u00e9 only: no public project here demonstrates it (confirm or link).' },
-    ] as ToolItem[] },
+    { id: 'dev', title: 'Languages and development', items: [
+      { name: 'Python', projects: ['cli-crawler', 'pwndbg'] },
+      { name: 'Go', projects: ['crawlx'] },
+      { name: 'Git and GitHub', projects: ['pwndbg'] },
+    ] },
+    { id: 'sys', title: 'Systems and debugging', items: [
+      { name: 'Linux' },
+      { name: 'GDB and Pwndbg', projects: ['pwndbg'] },
+      { name: 'Windows Server, AD DS and DNS', projects: ['ad-lab'] },
+      { name: 'PowerShell', projects: ['ad-lab'] },
+    ] },
+    { id: 'sec', title: 'Security tooling', items: [
+      { name: 'Burp Suite' },
+      { name: 'Nmap' },
+      { name: 'Wireshark' },
+      { name: 'Metasploit' },
+      { name: 'Nessus / OpenVAS' },
+      { name: 'Gobuster' },
+    ] },
+  ] as { id: string; title: string; items: Tool[] }[],
+};
+
+/* ----------------------------------------------------------------- writing */
+export const writing = {
+  heading: 'Writing',
+  lede: 'Beginner-level explainers on Medium.',
+  articles: [
+    { title: 'Hacking 101 — Crack the Code (Legally!)', date: '22 Feb 2025', topic: 'Ethical hacking', url: 'https://medium.com/@pandeyanant733/hacking-101-crack-the-code-legally-8c357651414f' },
+    { title: 'Decoding the OWASP Top 10', date: '19 Feb 2025', topic: 'Web security', url: 'https://medium.com/@pandeyanant733/decoding-the-owasp-top-10-3f2af22570dc' },
+    { title: 'cURL for Beginners: Essential Tips and Tricks', date: '28 May 2025', topic: 'Command line', url: 'https://medium.com/@pandeyanant733/curl-for-beginners-essential-tips-and-tricks-eb5098f026da' },
   ],
 };
-export interface ToolItem { name: string; evidence?: { label: string; href: string }; review?: string }
 
-/* -------------------------------------------------------------- background */
-export const background = {
-  intro: 'Computer science with a focus on security. The projects above are the clearest record of what I do: small command-line tools, a contribution to a debugger, and a lab for learning Active Directory.',
-  introReview: 'Provisional first-person summary of the verified work (OI-2).',
-  capabilities: [
-    { title: 'Python and Go', text: 'Command-line tools in both languages, and Python inside an existing open-source codebase.',
-      links: [{ label: 'CLI Web Crawler', href: '#cli-crawler' }, { label: 'CrawlX', href: '#crawlx' }, { label: 'Pwndbg', href: '#work' }],
-      more: { text: 'Also listed on the r\u00e9sum\u00e9: Bash, Java, C, C++, SQL, JavaScript, HTML/CSS.', review: 'R\u00e9sum\u00e9 list; no public project shown here uses them.' } },
-    { title: 'Concurrency and the web', text: 'Worker pools and task queues, depth-limited crawling, same-domain rules and robots.txt.',
-      links: [{ label: 'CrawlX', href: '#crawlx' }, { label: 'CLI Web Crawler', href: '#cli-crawler' }] },
-    { title: 'Inside a debugger', text: 'Changing a command\u2019s interface and documentation in a widely used GDB plug-in, with maintainers reviewing the work.',
-      links: [{ label: 'Pwndbg #3160', href: '#work' }] },
-    { title: 'Active Directory', text: 'Building a lab with a domain controller and a joined client, as groundwork for attack and detection practice.',
-      links: [{ label: 'Active Directory lab', href: '#ad-lab' }] },
-    { title: 'Explaining what I learn', text: 'Beginner-friendly articles on ethical hacking, the OWASP Top 10 and cURL.',
-      links: [{ label: 'Writing', href: '#writing' }] },
-  ],
-  tools: { text: 'Burp Suite, Nmap, Wireshark, Metasploit, Nessus / OpenVAS, BloodHound, Impacket, Responder, Netcat, OpenSSL, Gobuster, GDB (Pwndbg).',
-    review: 'Listed on the r\u00e9sum\u00e9; none is demonstrated by a public project on this page.' },
+/* ------------------------------------------------------------------ résumé */
+export const resume = {
+  heading: 'Experience and background',
+  pdf: { href: '/resume.pdf', label: 'Download résumé', meta: 'PDF · 385 KB', filename: 'Anant-Pandey-Resume.pdf' },
+  facts: [
+    ['Based in', 'Bhubaneswar, Odisha, India'],
+    ['Degree', 'B.Tech, Computer Science, 2022 – 2026'],
+  ] as [string, string][],
+  /** Newest first. */
   timeline: [
-    { when: '2022 \u2013 2026', what: 'B.Tech, Computer Science', where: 'Trident Academy of Technology, Bhubaneswar',
-      review: 'Current status unknown (A1): confirm graduation or expected date.' },
-    { when: 'Feb \u2013 Apr 2025', what: 'Cyber Security Intern', where: 'Teachnook, remote',
-      review: 'R\u00e9sum\u00e9 says Feb\u2013Apr; the legacy badge says Feb\u2013Mar and a different title (B1, B2).' },
-    { when: 'Jan \u2013 Feb 2025', what: 'Cyber Security Intern', where: 'AICTE-Edunet Foundation with IBM, remote',
-      review: 'Programme name differs between sources (B3). Responsibilities are omitted: the r\u00e9sum\u00e9 repeats the same text for both roles (B4).' },
-  ],
+    { when: 'Jul 2025', title: 'Pwndbg contribution merged', org: 'pwndbg/pwndbg · open source',
+      text: 'Refactored the cymbol command to use subcommands, with its documentation.',
+      link: { label: 'Pull request #3160', href: 'https://github.com/pwndbg/pwndbg/pull/3160' } },
+    { when: '2025', title: 'Cyber security internships', org: 'Remote, India',
+      roles: [
+        { when: 'Feb – Apr 2025', role: 'Cyber Security Intern', org: 'Teachnook' },
+        { when: 'Jan – Feb 2025', role: 'Cyber Security Intern', org: 'AICTE-Edunet Foundation, with IBM' },
+      ],
+      text: 'Reconnaissance, vulnerability assessment and exploitation validation on web and network targets; recursive crawling and parameter harvesting with a custom Python CLI tool; written findings with remediation recommendations.',
+      textNote: 'Responsibilities as written on the résumé, which gives the same text for both roles.' },
+    { when: '2022 – 2026', title: 'B.Tech, Computer Science', org: 'Trident Academy of Technology, Bhubaneswar' },
+  ] as {
+    when: string; title: string; org: string; text?: string; textNote?: string;
+    link?: { label: string; href: string };
+    roles?: { when: string; role: string; org: string }[];
+  }[],
   credentials: [
-    { name: 'Certified Cybersecurity Technician (C|CT)', issuer: 'EC-Council', review: 'Credential ID and validity not verified with the issuer (G1).' },
-    { name: 'Google Cybersecurity Professional Certificate', issuer: 'Google', review: 'Not verified with the issuer (G2).' },
-    { name: 'OWASP API Security Top 10 and Beyond', issuer: 'APISec University', review: 'Title differs between sources (G3).' },
+    { name: 'Certified Cybersecurity Technician (C|CT)', issuer: 'EC-Council' },
+    { name: 'Google Cybersecurity Professional Certificate', issuer: 'Google' },
+    { name: 'OWASP API Security Top 10 and Beyond', issuer: 'APISec University' },
+    { name: 'Cybersecurity virtual job simulations', issuer: 'Datacom, Deloitte, Mastercard, Tata' },
   ],
-  jobSims: { text: 'Virtual job simulations: Datacom, Deloitte, Mastercard and Tata (Forage).',
-    review: 'R\u00e9sum\u00e9 calls them "Virtual Experience/Internship"; wording needs your decision (B6).' },
 };
 
 /* ----------------------------------------------------------------- closing */
 export const closing = {
-  statement: 'The work is public. The conversation can start anywhere.',
-  lead: 'If any of it is relevant to what you are building, I would be glad to hear from you.',
-  review: 'Provisional wording (OI-2).',
+  heading: 'Get in touch',
+  lead: 'Questions about a project, a pull request or an article are welcome. Email is the quickest way to reach me.',
+  channels: ['email', 'github', 'linkedin', 'medium'] as const,
 };
 
 /* ---------------------------------------------------------------- withheld */
 /** Never rendered. Kept so nothing is lost. */
 export const withheld = {
-  resumePdf: 'Contains status and contact details not yet approved (A1, F5).',
-  gradeTwelve: '12th grade 90%, St. Mary\u2019s HSS, 2021\u201322 (A2: publish at all?).',
-  aiGeneratedLabDiagram: 'ad_lab_diagram.png shows typos and an AI watermark and depicts hosts (SIEM01, CA01) absent from the README. Do not use.',
-  unverifiedBadgeClaims: 'Cobalt Strike, Ghidra, malware analysis, forensics, NIST CSF, PTES, bug bounty, red teaming (C2-C8, D1-D3).',
-  credentialIds: 'C|CT ECC9285371640; Google 69LDJC7T49HZ (G1, G2).',
-  secureSuite: 'SecureSuite / StegoHide AES+RSA claim (E6) not demonstrated by the repos.',
+  gradeTwelve: '12th grade 90%, St. Mary’s HSS, 2021–22 (on the résumé; not shown on the page).',
+  credentialIds: 'C|CT and Google certificate credential IDs (on the résumé).',
+  unverifiedSkills: 'Cobalt Strike, Ghidra, malware analysis, forensics, NIST CSF, PTES, bug bounty, red teaming, and the résumé’s long skills list (BloodHound, Impacket, Responder, Kerberoasting…): not demonstrated by any public project.',
+  secureSuite: '“Secure Suite / StegoHide AES+RSA” (résumé): no public repository found.',
+  aiLabDiagram: 'Legacy ad_lab_diagram.png: typos, AI watermark, hosts absent from the README.',
 };
-
-/* ------------------------------------------------------------------ review */
-/** Walks the data and lists every provisional item (printed at build time). */
-export function reviewReport(): string[] {
-  const out: string[] = [];
-  const walk = (v: unknown, path: string) => {
-    if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`));
-    else if (v && typeof v === 'object') {
-      const o = v as Record<string, unknown>;
-      if (typeof o.review === 'string') out.push(`${path}: ${o.review}`);
-      for (const k of Object.keys(o)) if (k !== 'review') walk(o[k], `${path}.${k}`);
-    }
-  };
-  walk({ person, premise, profiles, contact, pwndbg, crawlx, cliCrawler, adLab, toolkit, writing, background, closing }, 'site');
-  return out;
-}

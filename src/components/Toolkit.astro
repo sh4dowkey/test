@@ -1,31 +1,40 @@
 ---
-import { toolkit, flag } from '../data/site';
+import { toolkit, index } from '../data/site';
+const name = (id: string) => index.find((p) => p.id === id)?.name ?? id;
 ---
-<section class="toolkit scene scene--paper" id="toolkit" data-scene="paper" aria-labelledby="toolkit-h">
+<section class="scene scene--ink kit" id="toolkit" data-scene="dark" aria-labelledby="kit-h">
   <div class="wrap">
-    <div class="cols">
-      <div class="toolkit__intro">
-        <h2 class="display" id="toolkit-h">{toolkit.heading}</h2>
-        <p class="lede">{toolkit.lede}</p>
-        <p class="toolkit__legend small" aria-hidden="true"><span class="mark mark--on"></span> Public work on this page <span class="mark mark--off"></span> R&eacute;sum&eacute; only</p>
-      </div>
-      <div class="toolkit__groups">
-        <svg class="toolkit__spine" aria-hidden="true" focusable="false" preserveAspectRatio="none" viewBox="0 0 2 100"><line class="spine-base" x1="1" x2="1" y1="0" y2="100" /><line class="spine-run" x1="1" x2="1" y1="0" y2="100" pathLength="100" /></svg>
+    <header class="sec-head sec-head--d" data-reveal-group>
+      <h2 class="h2" id="kit-h" data-reveal-item>{toolkit.heading}</h2>
+      <p class="sec-head__lede" data-reveal-item>{toolkit.lede}</p>
+    </header>
+    <div class="kit__wrap" data-kit>
+      <svg class="kit__trace" aria-hidden="true" focusable="false"></svg>
+      <div class="kit__groups" data-reveal-group>
         {toolkit.groups.map((g) => (
-          <div class="tgroup">
-            <h3 class="tgroup__title"><span class="tgroup__node" aria-hidden="true"></span>{g.title}</h3>
-            <ul class="tgroup__items">
-              {g.items.map((it) => (
-                <li class={`tool ${it.evidence ? 'tool--on' : 'tool--off'}`} {...flag(it)}>
-                  {it.evidence
-                    ? <a href={it.evidence.href}><span class="mark mark--on" aria-hidden="true"></span><span class="tool__name">{it.name}</span><span class="tool__note">{it.evidence.label}</span></a>
-                    : <span class="tool__static"><span class="mark mark--off" aria-hidden="true"></span><span class="tool__name">{it.name}</span><span class="tool__note">R&eacute;sum&eacute;</span></span>}
+          <section class="kit__group" data-reveal-item aria-labelledby={`kit-${g.id}`}>
+            <h3 class="kit__title" id={`kit-${g.id}`}>{g.title}</h3>
+            <ul class="kit__items">
+              {g.items.map((t) => (
+                <li>
+                  <button type="button" class="tool" data-projects={(t.projects ?? []).join(' ')} aria-pressed="false">
+                    {t.name}
+                    {t.projects && <span class="sr-only"> (used in {t.projects.map(name).join(', ')})</span>}
+                  </button>
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
         ))}
       </div>
+      <nav class="kit__projects" aria-label="Projects that use these tools" data-reveal-group>
+        <p class="kit__label" data-reveal-item>Used in</p>
+        <ul>
+          {index.map((p) => (
+            <li data-reveal-item><a class="chip" href={p.href} data-id={p.id}><span class="chip__n">{p.n}</span>{p.name}</a></li>
+          ))}
+        </ul>
+      </nav>
     </div>
   </div>
 </section>

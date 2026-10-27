@@ -1,0 +1,44 @@
+---
+import { closing, profiles, person, resume } from '../data/site';
+const rows = closing.channels.map((k) => ({ k, ...profiles[k] }));
+const year = new Date().getFullYear();
+---
+<section class="scene scene--ink contact" id="contact" data-scene="dark" aria-labelledby="contact-h">
+  <div class="wrap">
+    <div class="contact__grid">
+      <header class="contact__text" data-reveal-group>
+        <h2 class="h2" id="contact-h" data-reveal-item>{closing.heading}</h2>
+        <p class="lede lede--d" data-reveal-item>{closing.lead}</p>
+      </header>
+      <div class="channels" data-channels>
+        <span class="channels__rail" aria-hidden="true"><i class="channels__fill"></i></span>
+        <span class="channels__signal" aria-hidden="true"></span>
+        <ul class="channels__list">
+          {rows.map((r, i) => (
+            <li class="channel" data-i={i} data-k={r.k}>
+              <a class="channel__link" href={r.url} rel={r.k === 'email' ? undefined : 'noopener'}>
+                <span class="channel__label">{r.label}</span>
+                <span class="channel__handle">{r.handle}</span>
+                <span class="channel__note">{r.note}</span>
+              </a>
+              {r.k === 'email' && <button type="button" class="copy" data-copy={r.handle} aria-label="Copy email address">Copy</button>}
+            </li>
+          ))}
+        </ul>
+        <p class="sr-only" role="status" aria-live="polite" data-copy-status></p>
+      </div>
+    </div>
+    <footer class="foot">
+      <p class="foot__id">{person.name} <span>&middot; &copy; {year}</span></p>
+      <nav aria-label="Footer">
+        <ul>
+          <li><a href="#work">Work</a></li>
+          <li><a href="#toolkit">Toolkit</a></li>
+          <li><a href="#resume">R&eacute;sum&eacute;</a></li>
+          <li><a href={resume.pdf.href} download={resume.pdf.filename}>PDF</a></li>
+          <li><a href="#top">Back to top</a></li>
+        </ul>
+      </nav>
+    </footer>
+  </div>
+</section>
