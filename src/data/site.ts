@@ -86,7 +86,7 @@ export const adLab = {
   id: 'lab',
   name: 'Project Cerberus',
   status: 'Design and simulation',
-  lede: 'An Active Directory purple-team lab: a six-machine design with Sysmon telemetry, Winlogbeat forwarding, a SIEM, an AD CS honeypot and Sigma detections. In the public repository only DC01 and WIN10-1 are built. The interactive below is a local simulation of the design, not live telemetry.',
+  lede: 'A six-machine Active Directory purple-team design: a domain controller, a certificate authority with an AD CS honeypot, a member server, a victim workstation, a SIEM node and an attacker machine, with Sysmon, Winlogbeat, Elastic or OpenSearch and Sigma rules. In the public repository only a domain controller and a Windows 10 client are built, with different addressing. The scene below is a simulation of the designed scenario, not live telemetry.',
   repoUrl: 'https://github.com/sh4dowkey/ad-attack-defense-lab',
   network: 'ADLabNet (internal)',
   machines: [
@@ -138,30 +138,35 @@ export const pwndbg = {
 };
 
 /* ----------------------------------------------------------------- toolkit */
-/** Only technologies backed by the job description or by a verified repository. No ratings. `evidence` ids match
- *  `index` ids, plus 'work' for the Bobcares role. Add a tool here once its use is confirmed. */
-export interface Tool { name: string; note: string; evidence: string[] }
+/** basis: 'work' = the Bobcares role, 'project' = visible in a public repository, 'self' = the owner's own assessment
+ *  (not yet tied to a role or repository), 'early' = still learning. Anything with `review` blocks the strict build until
+ *  the owner confirms it. No ratings, no percentages. */
+export interface Tool { name: string; basis: 'work' | 'project' | 'self' | 'early'; detail: string; href?: string; review?: string }
 export const toolkit = {
   heading: 'Toolkit',
-  lede: 'Only what the work or a public repository shows. Point at a tool to see where it appears.',
-  evidenceTargets: [
-    { id: 'work', n: '00', name: 'Bobcares DevOps', href: '#resume' },
-  ],
+  lede: 'The tools I work with, and what each one is based on.',
   groups: [
-    { id: 'ops', title: 'Operations', items: [
-      { name: 'Linux servers', note: 'Day-to-day server checks', evidence: ['work'] },
-      { name: 'Windows Server', note: 'Work environments; lab domain controller', evidence: ['work', 'ad-lab'] },
-      { name: 'AD DS and DNS', note: 'DC01 in the lab', evidence: ['ad-lab'] },
-      { name: 'PowerShell', note: 'Forest setup and verification in the lab', evidence: ['ad-lab'] },
+    { id: 'ops', title: 'Infrastructure and operations', items: [
+      { name: 'Linux and server administration', basis: 'work', detail: 'Bobcares DevOps work', href: '#resume' },
+      { name: 'Windows Server', basis: 'work', detail: 'Bobcares work, and the lab domain controller', href: '#lab' },
+      { name: 'Networking and troubleshooting', basis: 'self', detail: 'Self-assessed', review: 'Self-assessed fundamentals: confirm wording and whether it belongs on the page.' },
+      { name: 'Server monitoring and log analysis', basis: 'self', detail: 'Self-assessed', review: 'Confirm whether this is part of the Bobcares role or self-assessed.' },
     ] },
-    { id: 'dev', title: 'Development', items: [
-      { name: 'Python', note: 'CLI crawler; Pwndbg patch', evidence: ['cli-crawler', 'pwndbg'] },
-      { name: 'Go', note: 'CrawlX', evidence: ['crawlx'] },
-      { name: 'Git and GitHub', note: 'Public repositories; upstream pull request', evidence: ['crawlx', 'cli-crawler', 'ad-lab', 'pwndbg'] },
-      { name: 'GDB and Pwndbg', note: 'Merged cymbol refactor', evidence: ['pwndbg'] },
+    { id: 'dev', title: 'Programming and development', items: [
+      { name: 'Python', basis: 'project', detail: 'CLI Web Crawler, Pwndbg patch', href: '#cli-crawler' },
+      { name: 'Bash scripting', basis: 'self', detail: 'Self-assessed', review: 'Self-assessed: confirm.' },
+      { name: 'Go', basis: 'project', detail: 'CrawlX', href: '#crawlx' },
+      { name: 'Git and GitHub', basis: 'project', detail: 'All public repositories', href: '#work' },
+      { name: 'GDB and Pwndbg', basis: 'project', detail: 'Merged cymbol refactor, #3160', href: '#pwndbg' },
     ] },
-    { id: 'lab', title: 'Lab environment', items: [
-      { name: 'VirtualBox / VMware', note: 'Named in the lab README', evidence: ['ad-lab'] },
+    { id: 'sec', title: 'Web security and research', items: [
+      { name: 'Burp Suite', basis: 'self', detail: 'Self-assessed', review: 'Self-assessed: confirm.' },
+      { name: 'Nmap and reconnaissance', basis: 'self', detail: 'Self-assessed', review: 'Self-assessed: confirm.' },
+      { name: 'Web vulnerability research', basis: 'self', detail: 'Self-assessed', href: '#writing', review: 'Self-assessed: confirm; the Medium articles are related writing, not research results.' },
+      { name: 'Vulnerability-report writing', basis: 'self', detail: 'Self-assessed', review: 'Self-assessed: confirm.' },
+    ] },
+    { id: 'cloud', title: 'Cloud', items: [
+      { name: 'Cloud fundamentals', basis: 'early', detail: 'Early experience', review: 'Presented as early experience: confirm which platforms, if any, to name.' },
     ] },
   ] as { id: string; title: string; items: Tool[] }[],
 };

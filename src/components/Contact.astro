@@ -5,23 +5,19 @@ const year = new Date().getFullYear();
 ---
 <section class="scene scene--ink contact" id="contact" data-scene="dark" aria-labelledby="contact-h">
   <div class="wrap">
-    <div class="contact__grid">
-      <header class="contact__text" data-reveal-group>
-        <h2 class="h2" id="contact-h" data-reveal-item>{closing.heading}</h2>
+    <div class="contact__split">
+      <div class="contact__copy" data-reveal-group>
+        <p class="kicker kicker--d" data-reveal-item>Contact</p>
+        <h2 class="h2 h2--sm" id="contact-h" data-reveal-item>{closing.heading}</h2>
         <p class="lede lede--d" data-reveal-item>{closing.lead}</p>
         <p class="contact__place" data-reveal-item><span aria-hidden="true"></span>{person.location}</p>
-        <p class="contact__cta" data-reveal-item><a class="btn btn--light" href={profiles.email.url}>Write an email</a></p>
-      </header>
-      <div class="channels" data-channels>
-        <span class="channels__rail" aria-hidden="true"><i class="channels__fill"></i></span>
-        <span class="channels__signal" aria-hidden="true"></span>
-        <ul class="channels__list">
-          {rows.map((r, i) => (
-            <li class="channel" data-i={i} data-k={r.k}>
-              <a class="channel__link" href={r.url} rel={r.k === 'email' ? undefined : 'noopener'}>
-                <span class="channel__label">{r.label}</span>
-                <span class="channel__handle">{r.handle}</span>
-                <span class="channel__note">{r.note}</span>
+        <ul class="contact__links" data-links data-reveal-item>
+          {rows.map((r) => (
+            <li data-k={r.k}>
+              <a href={r.url} rel={r.k === 'email' ? undefined : 'noopener'}>
+                <span class="contact__k">{r.label}</span>
+                <span class="contact__v">{r.handle}</span>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
               </a>
               {r.k === 'email' && <button type="button" class="copy" data-copy={r.handle} aria-label="Copy email address">Copy</button>}
             </li>
@@ -29,6 +25,7 @@ const year = new Date().getFullYear();
         </ul>
         <p class="sr-only" role="status" aria-live="polite" data-copy-status></p>
       </div>
+      <figure class="contact__visual" data-cvisual aria-hidden="true"><canvas></canvas><figcaption>{person.location}</figcaption></figure>
     </div>
     <footer class="foot">
       <p class="foot__id">{person.name} <span>&middot; &copy; {year}</span></p>

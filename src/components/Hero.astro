@@ -1,38 +1,21 @@
 ---
-import { person, index, resume } from '../data/site';
+const word = 'Welcome'.split('');
+const sub = 'Take a look around.';
 ---
-<section class="hero scene scene--ink" id="top" data-scene="dark" aria-label="Introduction">
-  <div class="hero__glow" aria-hidden="true"><i class="g1"></i><i class="g2"></i></div>
-  <div class="wrap hero__grid">
+<section class="hero" id="top" aria-label="Welcome">
+  <div class="hero__pin">
+    <!-- light copy sits below the paper layer, so the paper covers it as it grows -->
     <div class="hero__copy">
-      <p class="hero__eyebrow" data-intro>{person.eyebrow}</p>
-      <h1 class="hero__title">
-        {person.headline.map((l, i) => (
-          <span class="hero__line" data-intro><span class="hero__line-in" data-i={i}>{l}</span></span>
-        ))}
-      </h1>
-      <p class="hero__intro" data-intro>{person.intro}</p>
-      <p class="hero__actions" data-intro>
-        <a class="btn btn--light" href="#work">See the work</a>
-        <a class="textlink" href={resume.pdf.href} download={resume.pdf.filename} type="application/pdf">R&eacute;sum&eacute; (PDF)</a>
-      </p>
+      <h1 class="hero__word" aria-label="Welcome">{word.map((c) => <span class="ch" aria-hidden="true"><span>{c}</span></span>)}</h1>
+      <p class="hero__sub"><span>{sub}</span></p>
     </div>
-    <nav class="hero__index" aria-label="Selected work" data-intro>
-      <p class="hero__index-label">In this portfolio</p>
-      <div class="index-wrap">
-      <ol class="index">
-        {index.map((p) => (
-          <li class="index__row" data-id={p.id}>
-            <a class="index__link" href={p.href}>
-              <span class="index__n">{p.n}</span>
-              <span class="index__body"><span class="index__name">{p.name}</span><span class="index__meta">{p.meta}</span></span>
-              <span class="index__kind">{p.kind}</span>
-            </a>
-          </li>
-        ))}
-      </ol>
-      <span class="index__trace" aria-hidden="true"><i class="index__trace-fill"></i><i class="index__signal"></i></span>
+    <div class="hero__paper" aria-hidden="true">
+      <div class="hero__copy hero__copy--ink">
+        <p class="hero__word">{word.map((c) => <span class="ch"><span>{c}</span></span>)}</p>
+        <p class="hero__sub"><span>{sub}</span></p>
       </div>
-    </nav>
+    </div>
+    <canvas class="hero__canvas" aria-hidden="true"></canvas>
+    <a class="hero__cue" href="#work"><span>Scroll</span><i aria-hidden="true"></i></a>
   </div>
 </section>

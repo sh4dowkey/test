@@ -1,7 +1,6 @@
 ---
-import { toolkit, index } from '../data/site';
-const targets = [...toolkit.evidenceTargets, ...index];
-const name = (id: string) => targets.find((p) => p.id === id)?.name ?? id;
+import { toolkit } from '../data/site';
+const basisLabel = { work: 'Work', project: 'Project', self: 'Self-assessed', early: 'Early experience' } as const;
 ---
 <section class="scene scene--ink kit" id="toolkit" data-scene="dark" aria-labelledby="kit-h">
   <div class="wrap">
@@ -9,19 +8,18 @@ const name = (id: string) => targets.find((p) => p.id === id)?.name ?? id;
       <h2 class="h2" id="kit-h" data-reveal-item>{toolkit.heading}</h2>
       <p class="sec-head__lede" data-reveal-item>{toolkit.lede}</p>
     </header>
-    <div class="kit__wrap" data-kit>
-      <svg class="kit__trace" aria-hidden="true" focusable="false"></svg>
-      <div class="kit__groups" data-reveal-group>
-        {toolkit.groups.map((g) => (
-          <section class="kit__group" data-reveal-item aria-labelledby={`kit-${g.id}`}>
-            <h3 class="kit__title" id={`kit-${g.id}`}>{g.title}</h3>
-            <ul class="kit__items">
+    <div class="kit__board" data-kit>
+      <svg class="kit__rail" aria-hidden="true" focusable="false"></svg>
+      <div class="kit__cols">
+        {toolkit.groups.map((g, gi) => (
+          <section class="kit__col" data-col={gi} aria-labelledby={`kit-${g.id}`}>
+            <h3 class="kit__title" id={`kit-${g.id}`}><span>{String(gi + 1).padStart(2, '0')}</span>{g.title}</h3>
+            <ul>
               {g.items.map((t) => (
                 <li>
-                  <button type="button" class="tool" data-projects={t.evidence.join(' ')} aria-pressed="false">
+                  <button type="button" class="tool" data-name={t.name} data-basis={t.basis} data-detail={t.detail} data-href={t.href ?? ''}>
                     <span class="tool__name">{t.name}</span>
-                    <span class="tool__note">{t.note}</span>
-                    <span class="sr-only">Appears in {t.evidence.map(name).join(', ')}.</span>
+                    <span class="tool__basis">{t.basis === 'early' ? 'Early experience' : t.detail}</span>
                   </button>
                 </li>
               ))}
@@ -29,14 +27,8 @@ const name = (id: string) => targets.find((p) => p.id === id)?.name ?? id;
           </section>
         ))}
       </div>
-      <nav class="kit__projects" aria-label="Where these tools appear" data-reveal-group>
-        <p class="kit__label" data-reveal-item>Where it appears</p>
-        <ul>
-          {targets.map((p) => (
-            <li data-reveal-item><a class="chip" href={p.href} data-id={p.id}><span class="chip__n">{p.n}</span>{p.name}</a></li>
-          ))}
-        </ul>
-      </nav>
+      <p class="kit__focus" data-focus aria-live="polite"><span>Point at a tool to see what it is based on.</span></p>
+      <p class="kit__key"><b>Work</b> daily in the Bobcares DevOps role <b>Project</b> shown in a public repository <b>Self-assessed</b> my own assessment, not yet tied to a project <b>Early experience</b> still learning</p>
     </div>
   </div>
 </section>

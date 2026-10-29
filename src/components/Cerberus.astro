@@ -1,6 +1,5 @@
 ---
 import { adLab as lab } from '../data/site';
-import { cerberusMeta } from '../data/cerberus';
 const built = lab.status_table.filter((s) => s.state === 'built');
 const planned = lab.status_table.filter((s) => s.state === 'planned');
 ---
@@ -14,10 +13,9 @@ const planned = lab.status_table.filter((s) => s.state === 'planned');
       </div>
       <p class="lede lede--d" data-reveal-item>{lab.lede}</p>
     </header>
-
     <div class="lab__truth" data-reveal-group>
       <dl class="lab__list" data-reveal-item>
-        <dt>Built, per the public repository</dt>
+        <dt>Built, per the public lab repository</dt>
         {built.map((s) => <dd><b>{s.name}</b> {s.note}</dd>)}
       </dl>
       <dl class="lab__list lab__list--planned" data-reveal-item>
@@ -25,9 +23,8 @@ const planned = lab.status_table.filter((s) => s.state === 'planned');
         {planned.map((s) => <dd><b>{s.name}</b> {s.note}</dd>)}
         <dd><b>CA01, SRV01, SIEM01</b> Part of the Cerberus design only</dd>
       </dl>
-      <p class="project__links" data-reveal-item><a class="btn btn--light" href={cerberusMeta.repoUrl} rel="noopener">View source on GitHub</a></p>
+      <p class="project__links" data-reveal-item><a class="btn btn--light" href="https://github.com/sh4dowkey/ad-attack-defense-lab" rel="noopener">View source on GitHub</a></p>
     </div>
-
     <div class="demo demo--cb" data-zoom data-cerb>
       <noscript><p class="dm__note">The Cerberus simulation needs JavaScript. It replays fixture events; nothing here is live.</p></noscript>
     </div>

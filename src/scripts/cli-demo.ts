@@ -1,20 +1,22 @@
 /**
- * CLI Web Crawler demonstration (frontend replay of a sample run).
- * run() follows crawler/core.py statement by statement: a list used as a FIFO queue, a global `visited` set,
- * `depth > args.depth` skipped, robots.txt consulted before a URL is added to `visited`, a failed fetch printed
- * as [ERROR] and dropped, keyword search as a case-insensitive substring, link filters for --internal-only /
- * --external-only, and either a summary or an --output file at the end. Pages are fixtures (src/data/demos.ts);
- * nothing is fetched and no visitor-supplied URL is ever crawled.
+ * CLI Web Crawler demonstration: a self-running replay of one documented sample run (no controls).
+ * run() follows crawler/core.py statement by statement: list used as a FIFO queue, global `visited` set,
+ * `depth > args.depth` skipped, robots.txt consulted before a URL joins `visited` (fails open), a failed fetch printed
+ * as [ERROR] and dropped, --search as a case-insensitive substring, --internal-only / --external-only filters and,
+ * with --output, a file written silently (nothing is printed), otherwise a summary. Pages are fixtures
+ * (src/data/demos.ts); nothing is fetched and no visitor-supplied URL is ever crawled.
+ * Terminal, queue, robots.txt panel and results ledger are all driven by the same step list and one loop position.
  */
 import { cliFixture as fx, type CliPage } from '../data/demos';
+import { createLoop, clamp, ease, esc } from './loop';
 
 interface Opts { depth: number; maxPages: number; search: string; scope: 'all' | 'internal' | 'external'; verbose: boolean; output: boolean }
-interface Step { lines: string[]; queue: { url: string; depth: number }[]; visited: number; current: string; tag?: { text: string; kind: 'ok' | 'warn' | 'bad' | 'dim' | 'hit' }; progress: number; results: { url: string; title: string; hit: boolean }[]; quick?: boolean }
+type Kind = 'ok' | 'bad' | 'hit' | 'dim';
+interface Step { lines: string[]; queue: { url: string; depth: number }[]; visited: number; current: string; tag: { text: string; kind: Kind }; progress: number; results: { url: string; title: string; hit: boolean }[]; quick: boolean; stage: number; final?: boolean }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const pageBy = new Map<string, CliPage>(fx.pages.map((p) => [p.url, p]));
 const host = (u: string) => new URL(u).host;
-const robotsOk = (u: string) => { const r = fx.robots[host(u)]; if (!r) return true; const p = new URL(u).pathname; return !r.some((d) => p.startsWith(d)); };
+const disallowedBy = (u: string) => { const r = fx.robots[host(u)]; if (!r) return null; const p = new URL(u).pathname; return r.find((d) => p.startsWith(d)) ?? null; };
 const isInternal = (a: string, b: string) => host(a) === host(b);
 
 export function command(o: Opts) {
@@ -28,23 +30,23 @@ export function command(o: Opts) {
   return parts.join(' ');
 }
 
-export function run(o: Opts): { steps: Step[]; file: string } {
-  const visited = new Set<string>();
-  const queue: [string, number][] = [[fx.start, 0]];
-  const results: { url: string; title: string; hit: boolean }[] = [];
-  const steps: Step[] = [];
-  let progress = 0;
-  const snap = (current: string, lines: string[], tag?: Step['tag'], quick = false) =>
-    steps.push({ lines, queue: queue.map(([url, depth]) => ({ url, depth })), visited: visited.size, current, tag, progress, results: results.slice(), quick });
+/** Stage indexes for the progress rail. */
+const STAGES = ['Command', 'robots.txt', 'Queue', 'Fetch and parse', 'Filter', 'Keyword', 'Output'];
 
-  snap('', [`Crawling ${fx.start} with max depth=${o.depth} and max pages=${o.maxPages}`], { text: 'start URL queued at depth 0', kind: 'dim' });
+export function run(o: Opts): { steps: Step[]; file: string } {
+  const visited = new Set<string>(), queue: [string, number][] = [[fx.start, 0]], results: { url: string; title: string; hit: boolean }[] = [], steps: Step[] = [];
+  let progress = 0;
+  const snap = (current: string, lines: string[], tag: Step['tag'], stage: number, quick = false, final = false) =>
+    steps.push({ lines, queue: queue.map(([url, depth]) => ({ url, depth })), visited: visited.size, current, tag, progress, results: results.slice(), quick, stage, final });
+  snap('', [`Crawling ${fx.start} with max depth=${o.depth} and max pages=${o.maxPages}`], { text: 'seed URL queued at depth 0', kind: 'dim' }, 2);
   while (queue.length && visited.size < o.maxPages) {
     const [url, depth] = queue.shift()!;
-    if (visited.has(url) || depth > o.depth) { snap(url, [], { text: visited.has(url) ? 'already visited, skipped' : `depth ${depth} > ${o.depth}, skipped`, kind: 'dim' }, true); continue; }
-    if (!robotsOk(url)) { snap(url, o.verbose ? [`<span class="c-bad">[robots.txt] Disallowed:</span> ${esc(url)}`] : [], { text: 'robots.txt: disallowed', kind: 'bad' }); continue; }
+    if (visited.has(url) || depth > o.depth) { snap(url, [], { text: visited.has(url) ? 'already visited' : `depth ${depth} > ${o.depth}`, kind: 'dim' }, 2, true); continue; }
+    const rule = disallowedBy(url);
+    if (rule) { snap(url, o.verbose ? [`<span class="c-bad">[robots.txt] Disallowed:</span> ${esc(url)}`] : [], { text: `robots.txt disallows ${rule}`, kind: 'bad' }, 1); continue; }
     visited.add(url);
     const pg = pageBy.get(url);
-    if (!pg || pg.fail) { snap(url, [`<span class="c-bad">[ERROR]</span> Failed to fetch ${esc(url)}: 404 Client Error: Not Found for url: ${esc(url)}`], { text: 'fetch failed, dropped', kind: 'bad' }); continue; }
+    if (!pg || pg.fail) { snap(url, [`<span class="c-bad">[ERROR]</span> Failed to fetch ${esc(url)}: 404 Client Error: Not Found for url: ${esc(url)}`], { text: 'fetch failed, dropped', kind: 'bad' }, 3); continue; }
     const hit = o.search ? pg.text.toLowerCase().includes(o.search.toLowerCase()) : false;
     results.push({ url, title: pg.title, hit });
     const lines: string[] = [];
@@ -56,123 +58,89 @@ export function run(o: Opts): { steps: Step[]; file: string } {
       if (!visited.has(link)) { queue.push([link, depth + 1]); queued++; }
     }
     progress = results.length;
-    snap(url, lines, { text: `${queued} queued${filtered ? ` · ${filtered} filtered (${o.scope}-only)` : ''}${hit ? ' · keyword match' : ''}`, kind: hit ? 'hit' : 'ok' });
+    snap(url, lines, { text: `${queued} link${queued === 1 ? '' : 's'} queued${hit ? ' · keyword match' : ''}`, kind: hit ? 'hit' : 'ok' }, hit ? 5 : 3);
   }
-  const body = results.map((r) => `${r.url}\nTitle: ${r.title}\nKeyword found: ${r.hit ? '✔️' : '❌'}\n`);
   const fin: string[] = [];
-  if (o.output) fin.push(`<span class="c-dim">(results written to results.txt: ${results.length} pages)</span>`);
-  else { fin.push('', '--- Crawl Summary ---'); for (const r of results) fin.push(esc(r.url), `Title: ${esc(r.title)}`, `Keyword found: ${r.hit ? '<span class="c-hit">✔️</span>' : '❌'}`, ''); }
+  if (!o.output) { fin.push('', '--- Crawl Summary ---'); for (const r of results) fin.push(esc(r.url), `Title: ${esc(r.title)}`, `Keyword found: ${r.hit ? '<span class="c-hit">✔️</span>' : '❌'}`, ''); }
   queue.length = 0;
-  snap('', fin, { text: o.output ? 'file written' : 'summary printed', kind: 'ok' });
-  return { steps, file: body.join('\n') };
+  snap('', fin, { text: o.output ? 'results.txt written' : 'summary printed', kind: 'ok' }, 6, false, true);
+  return { steps, file: results.map((r) => `${r.url}\nTitle: ${r.title}\nKeyword found: ${r.hit ? '✔️' : '❌'}\n`).join('\n') };
 }
 
-/* ------------------------------------------------------------------ UI */
 export function initCliDemo(root: HTMLElement, opts: { reduced: boolean }) {
-  const o: Opts = { depth: fx.defaults.depth, maxPages: fx.defaults.maxPages, search: 'backup', scope: 'all', verbose: true, output: false };
-  let sim = run(o), i = 0, playing = false, speed = 1, started = false, visible = false, acc = 0, last = 0, typed = 0, typing = false;
+  const o: Opts = { depth: fx.defaults.depth, maxPages: fx.defaults.maxPages, search: 'backup', scope: 'all', verbose: true, output: true };
+  const sim = run(o), cmd = command(o);
+  const TYPE_MS = 34, TYPE = cmd.length * TYPE_MS, GAP = 700, HOLD = 5200;
+  const starts: number[] = []; let acc = TYPE + GAP; sim.steps.forEach((s) => { starts.push(acc); acc += s.quick ? 170 : 780; });
+  const CYCLE = acc + HOLD;
+  const ruleLines = (fx.robots['notes.sample.test'] ?? []);
 
   root.innerHTML = `
   <div class="dm__bar">
-    <span class="dm__badge dm__badge--coral" title="Replay of a sample run">Sample run · fixture pages</span>
-    <div class="dm__ctrl" role="group" aria-label="Playback">
-      <button type="button" class="dm__btn dm__btn--main" data-play>Pause</button>
-      <button type="button" class="dm__btn" data-step aria-label="Step to next crawl step">Step</button>
-      <button type="button" class="dm__btn" data-replay>Replay</button>
-      <button type="button" class="dm__btn" data-speed aria-label="Playback speed">1×</button>
+    <span class="dm__badge dm__badge--ink" title="Replay of a sample run">Sample run · fixture pages</span>
+    <ol class="cl__rail" data-rail aria-label="Stages of the run">${STAGES.map((s) => `<li>${s}</li>`).join('')}</ol>
+    <span class="dm__loop" aria-hidden="true"><i data-loop></i></span>
+  </div>
+  <div class="cl__stage" data-stage>
+    <div class="cl__term" role="region" aria-label="Terminal output of the sample run">
+      <div class="cl__chrome"><i></i><i></i><i></i><span>cli.py · sample run</span></div>
+      <pre class="cl__out" data-out></pre>
+      <div class="cl__prog" aria-hidden="true"><span data-pct>0%</span><i><b data-bar></b></i><span data-count>0/${o.maxPages}</span></div>
+    </div>
+    <div class="cl__sheet">
+      <section class="cl__robots" aria-label="robots.txt for notes.sample.test">
+        <p class="cl__h">robots.txt <span>notes.sample.test</span></p>
+        <p class="cl__rl">User-agent: *</p>
+        ${ruleLines.map((r) => `<p class="cl__rl" data-rule="${esc(r)}">Disallow: ${esc(r)}</p>`).join('')}
+        <p class="cl__check" data-check>waiting</p>
+      </section>
+      <section class="cl__queuebox" aria-label="Crawl queue"><p class="cl__h">Queue <span data-visited>visited 0</span></p><ol class="cl__queue" data-queue></ol></section>
+      <section class="cl__ledger" aria-label="Results"><p class="cl__h" data-lh>Results <span data-rcount>0 pages</span></p><ul data-results></ul><p class="cl__stamp" data-stamp>results.txt saved by --output</p></section>
     </div>
   </div>
-  <div class="cl__grid">
-    <form class="cl__opts" onsubmit="return false" aria-label="Command options">
-      <p class="dm__h">Options <span class="dm__dim">from the README</span></p>
-      <label>--depth <select data-o="depth"><option>0</option><option>1</option><option selected>2</option><option>3</option></select></label>
-      <label>--max-pages <select data-o="maxPages"><option>4</option><option>8</option><option selected>100</option></select></label>
-      <label>--search <select data-o="search"><option value="">(none)</option><option selected>backup</option><option>login</option></select></label>
-      <fieldset><legend>Links</legend>
-        <label><input type="radio" name="scope" value="all" checked /> all</label>
-        <label><input type="radio" name="scope" value="internal" /> --internal-only</label>
-        <label><input type="radio" name="scope" value="external" /> --external-only</label>
-      </fieldset>
-      <label class="cl__chk"><input type="checkbox" data-o="verbose" checked /> --verbose</label>
-      <label class="cl__chk"><input type="checkbox" data-o="output" /> --output results.txt</label>
-      <p class="dm__dim cl__hint">Visitor-supplied URLs are never crawled. The pages are fixtures; the keyword choices are presets.</p>
-    </form>
-    <div class="cl__term" role="region" aria-label="Terminal">
-      <div class="cl__chrome"><i></i><i></i><i></i><span>sample run</span></div>
-      <pre class="cl__out" data-out tabindex="0" aria-live="off"></pre>
-      <div class="cl__prog" aria-hidden="true"><span data-pct>0%</span><i><b data-bar></b></i><span data-count>0/100</span></div>
-    </div>
-    <div class="cl__state">
-      <p class="dm__h">Crawl queue <span class="dm__dim" data-visited>visited 0</span></p>
-      <p class="cl__cur" data-cur></p>
-      <ol class="cl__queue" data-queue></ol>
-      <p class="dm__h">Results <span class="dm__dim" data-rcount>0</span></p>
-      <ul class="cl__results" data-results></ul>
-      <div class="cl__file" data-file hidden></div>
-    </div>
-  </div>
-  <p class="dm__note">Sample data, not a live crawl. The run follows <code>crawler/core.py</code>: FIFO queue, <code>visited</code> set, robots.txt check before visiting (fails open if unreachable), <code>--search</code> as a case-insensitive substring match. Link order is sorted here; the Python code iterates a set.</p>`;
+  <p class="dm__note">Sample data, not a live crawl. The run follows <code>crawler/core.py</code>: FIFO queue, <code>visited</code> set, robots.txt checked before visiting (fails open if unreachable), <code>--search</code> as a case-insensitive substring match. With <code>--output</code> the real tool writes the file silently, so the terminal shows no summary. Link order is sorted here; the Python code iterates a set.</p>`;
 
   const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s)!;
-  const outEl = $('[data-out]');
+  const out = $('[data-out]'), stage = $('[data-stage]'), rail = Array.from($('[data-rail]').children) as HTMLElement[];
+  let shown = -1, lastQ = '', lastR = '';
+  const promptHtml = (n: number) => `<span class="c-dim">$</span> ${esc(cmd.slice(0, n))}`;
 
-  function paint() {
-    const cmd = command(o);
-    const upto = sim.steps.slice(0, i);
-    const prompt = `<span class="c-dim">$</span> ${esc(cmd.slice(0, typing ? typed : cmd.length))}${typing ? '<span class="cl__caret"></span>' : ''}`;
-    const body = typing ? '' : upto.flatMap((s) => s.lines).join('\n');
-    outEl.innerHTML = prompt + (body ? '\n' + body : '');
-    outEl.scrollTop = outEl.scrollHeight;
-    const cur = upto[upto.length - 1];
+  function render(u: number, fade: number) {
+    stage.style.setProperty('--fade', String(fade));
+    $('[data-loop]').style.transform = `scaleX(${(u / CYCLE).toFixed(4)})`;
+    // how many steps have started
+    let n = 0; while (n < starts.length && u >= starts[n]) n++;
+    const typed = clamp(u / TYPE) * cmd.length;
+    if (n < shown) { out.innerHTML = ''; shown = -1; lastQ = ''; lastR = ''; }
+    if (shown === -1) { out.innerHTML = `<span data-p></span>`; shown = 0; }
+    const p = out.firstElementChild as HTMLElement; const typing = u < TYPE;
+    const ph = promptHtml(Math.round(typed)) + (typing || n === 0 ? '<span class="cl__caret"></span>' : ''); if (p.dataset.h !== ph) { p.dataset.h = ph; p.innerHTML = ph; }
+    while (shown < n) { const s = sim.steps[shown]; s.lines.forEach((l) => { const d = document.createElement('span'); d.className = 'cl__ln'; d.innerHTML = '\n' + l; out.appendChild(d); }); shown++; out.scrollTop = out.scrollHeight; }
+    const cur = n > 0 ? sim.steps[n - 1] : null;
+    // rail: which part of the process is active
+    const sinceStep = cur ? u - starts[n - 1] : 0; const active = !cur ? 0 : cur.final ? 6 : sinceStep < 260 && cur.stage !== 1 && cur.stage !== 2 ? 3 : cur.stage;
+    rail.forEach((li, i) => { li.classList.toggle('is-on', i === active); li.classList.toggle('is-past', i < active || (cur?.final && i <= 6)); });
     const pct = Math.round(((cur?.progress ?? 0) / o.maxPages) * 100);
-    $('[data-pct]').textContent = pct + '%'; ($('[data-bar]') as HTMLElement).style.width = pct + '%'; $('[data-count]').textContent = `${cur?.progress ?? 0}/${o.maxPages}`;
+    $('[data-pct]').textContent = pct + '%'; ($('[data-bar]') as HTMLElement).style.width = Math.max(pct, cur ? 2 : 0) + '%'; $('[data-count]').textContent = `${cur?.progress ?? 0}/${o.maxPages}`;
+    // robots.txt panel
+    const chk = $('[data-check]');
+    const robotsHit = cur && cur.tag.kind === 'bad' && cur.tag.text.startsWith('robots');
+    const rule = robotsHit ? cur!.tag.text.replace('robots.txt disallows ', '') : '';
+    root.querySelectorAll('[data-rule]').forEach((el) => el.classList.toggle('is-hit', (el as HTMLElement).dataset.rule === rule));
+    chk.innerHTML = !cur || !cur.current ? 'checking the seed URL…' : robotsHit ? `<b class="is-bad">disallowed</b> ${esc(new URL(cur.current).pathname)}` : cur.tag.text.includes('depth') || cur.tag.text.includes('visited') ? `<span class="dim">skipped</span> ${esc(new URL(cur.current).pathname)}` : `<b>allowed</b> ${esc(new URL(cur.current).pathname)}`;
+    // queue ribbon
+    const q = !cur ? '' : cur.queue.slice(0, 7).map((x) => `<li><span>${esc(x.url.replace('https://', '').replace(/\/$/, '') || x.url)}</span><i>d${x.depth}</i></li>`).join('') + (cur.queue.length > 7 ? `<li class="more">+${cur.queue.length - 7}</li>` : '') || '<li class="more">empty</li>';
+    if (q !== lastQ) { lastQ = q; $('[data-queue]').innerHTML = q; }
     $('[data-visited]').textContent = 'visited ' + (cur?.visited ?? 0);
-    $('[data-cur]').innerHTML = cur && cur.tag ? `<code>${esc(cur.current || fx.start)}</code><span class="cl__tag cl__tag--${cur.tag.kind}">${esc(cur.tag.text)}</span>` : '<span class="dm__dim">waiting</span>';
-    $('[data-queue]').innerHTML = cur ? (cur.queue.slice(0, 8).map((q) => `<li><code>${esc(q.url.replace('https://', ''))}</code><i>d${q.depth}</i></li>`).join('') + (cur.queue.length > 8 ? `<li class="dm__dim">+ ${cur.queue.length - 8} more</li>` : '') || '<li class="dm__dim">empty</li>') : '';
+    // results ledger
     const res = cur?.results ?? [];
-    $('[data-rcount]').textContent = String(res.length);
-    $('[data-results]').innerHTML = res.map((r) => `<li class="${r.hit ? 'is-hit' : ''}"><code>${esc(r.url.replace('https://', ''))}</code><span>${esc(r.title)}</span><b>${o.search ? (r.hit ? '✔️' : '❌') : ''}</b></li>`).join('');
-    const file = $('[data-file]'); const done = i >= sim.steps.length;
-    if (o.output && done && !typing) { file.hidden = false; file.innerHTML = `<p class="dm__h">results.txt</p><pre>${esc(sim.file)}</pre>`; } else file.hidden = true;
-    const pb = $('[data-play]'); const lbl = playing ? 'Pause' : 'Play'; pb.textContent = lbl;
+    const r = res.map((x) => `<li class="${x.hit ? 'is-hit' : ''}"><code>${esc(x.url.replace('https://', ''))}</code><span>${esc(x.title)}</span><b>${x.hit ? 'match' : ''}</b></li>`).join('');
+    if (r !== lastR) { lastR = r; $('[data-results]').innerHTML = r; const l = $('[data-results]'); l.scrollTop = l.scrollHeight; }
+    $('[data-rcount]').textContent = `${res.length} page${res.length === 1 ? '' : 's'}`;
+    const fin = !!cur?.final; $('[data-lh]').firstChild!.textContent = fin ? 'results.txt ' : 'Results '; $('[data-stamp]').style.opacity = String(fin ? ease((u - starts[n - 1]) / 500) : 0);
+    stage.classList.toggle('is-final', fin);
   }
 
-  function restart(autoplay = true) {
-    sim = run(o); i = 0; acc = 0; last = 0;
-    typing = !opts.reduced && autoplay; typed = 0; playing = autoplay;
-    if (opts.reduced) { typing = false; i = sim.steps.length; playing = false; }
-    paint();
-  }
-  const bind = () => {
-    root.querySelectorAll<HTMLSelectElement>('select[data-o]').forEach((s) => s.addEventListener('change', () => { const k = s.dataset.o as 'depth' | 'maxPages' | 'search'; (o as unknown as Record<string, unknown>)[k] = k === 'search' ? s.value : +s.value; restart(!opts.reduced); }));
-    root.querySelectorAll<HTMLInputElement>('input[data-o]').forEach((c) => c.addEventListener('change', () => { (o as unknown as Record<string, unknown>)[c.dataset.o!] = c.checked; restart(!opts.reduced); }));
-    root.querySelectorAll<HTMLInputElement>('input[name=scope]').forEach((r) => r.addEventListener('change', () => { o.scope = r.value as Opts['scope']; restart(!opts.reduced); }));
-    $('[data-play]').addEventListener('click', () => { if (i >= sim.steps.length) restart(true); else { playing = !playing; last = 0; paint(); } });
-    $('[data-replay]').addEventListener('click', () => restart(!opts.reduced));
-    $('[data-step]').addEventListener('click', () => { playing = false; typing = false; if (i < sim.steps.length) i++; paint(); });
-    $('[data-speed]').addEventListener('click', (e) => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; (e.currentTarget as HTMLElement).textContent = speed + '×'; });
-  };
-  bind();
-
-  const frame = (now: number) => {
-    if (playing && visible) {
-      if (last) {
-        const dt = (now - last) * speed; last = now;
-        if (typing) { typed += dt / 22; if (typed >= command(o).length) { typing = false; acc = 0; } paint(); }
-        else {
-          acc += dt;
-          while (i < sim.steps.length && acc >= (sim.steps[i].quick ? 90 : 520)) { acc -= sim.steps[i].quick ? 90 : 520; i++; }
-          if (i >= sim.steps.length) playing = false;
-          paint();
-        }
-      } else last = now;
-    } else last = 0;
-    requestAnimationFrame(frame);
-  };
-  paint(); requestAnimationFrame(frame);
-  new IntersectionObserver(([en]) => {
-    visible = en.isIntersecting;
-    if (visible && !started) { started = true; restart(!opts.reduced); }
-  }, { threshold: 0.35 }).observe(root);
-  (root as unknown as { __cli: unknown }).__cli = { get i() { return i; }, get n() { return sim.steps.length; }, get playing() { return playing; } };
+  const loop = createLoop(root, { cycle: CYCLE, reduced: opts.reduced, staticU: CYCLE - HOLD * 0.6, render });
+  (root as unknown as { __cli: unknown }).__cli = { seek: (ms: number) => loop.seek(ms), get pos() { return loop.pos; }, get running() { return loop.running; }, cycle: CYCLE, steps: sim.steps.length, get text() { return out.textContent; } };
 }

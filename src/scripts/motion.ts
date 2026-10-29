@@ -1,7 +1,7 @@
 /**
  * Progressive enhancement. The page is complete without this file: no-JS and reduced-motion visitors get the finished
- * compositions. There are no pinned sequences (the brief allows two; none was needed). The opening is a sticky "curtain": the hero stays put while the first
- * light scene rises over it, so every pixel of scroll moves real content (no spacer, no dead viewport).
+ * compositions. There is exactly one pinned sequence: the opening (hero-scene.ts), pinned for about 1.75 viewports on desktop and 1.15 on phones.
+ * Everything else is scroll-linked or reveal-based without pinning. The demonstrations run on their own loops (loop.ts).
  *
  * Motion system (shared by everything below)
  *   ease      expo-out for entrances, none for scrubbed values (Lenis already smooths them)
@@ -15,6 +15,8 @@ import Lenis from 'lenis';
 import { initCrawlxDemo } from './crawlx-demo';
 import { initCliDemo } from './cli-demo';
 import { initCerberus } from './cerberus-sim';
+import { initHeroScene } from './hero-scene';
+import { initContactVisual } from './contact-visual';
 
 gsap.registerPlugin(ScrollTrigger);
 ScrollTrigger.config({ ignoreMobileResize: true });
@@ -80,9 +82,9 @@ function initNav() {
     ScrollTrigger.create({ trigger: sec, start: 'top 40px', end: 'bottom 40px', onToggle: (s) => { if (s.isActive) setTone(sec.dataset.scene === 'paper' ? 'paper' : 'dark'); } });
   });
   setCurrent('#top');
-  const map: [string, string][] = [['.work', '#work'], ['#lab', '#work'], ['#pwndbg', '#work'], ['#toolkit', '#toolkit'], ['#writing', '#writing'], ['#resume', '#resume'], ['#contact', '#contact']];
+  const map: [string, string][] = [['.curtain', '#work'], ['#lab', '#work'], ['#pwndbg', '#work'], ['#toolkit', '#toolkit'], ['#writing', '#writing'], ['#resume', '#resume'], ['#contact', '#contact']];
   map.forEach(([sel, id]) => { const el = q(sel); if (el) ScrollTrigger.create({ trigger: el, start: 'top 50%', end: 'bottom 50%', onToggle: (s) => { if (s.isActive) setCurrent(id); } }); });
-  ScrollTrigger.create({ trigger: '.hero', start: 'top top', end: 'top -50%', onEnter: () => setCurrent('#top'), onLeaveBack: () => setCurrent('#top') });
+  ScrollTrigger.create({ trigger: '.hero', start: 'top top', end: 'bottom 60%', onToggle: (s) => { if (s.isActive) setCurrent('#top'); } });
   ScrollTrigger.create({
     start: 0, end: 'max', onUpdate: (self) => {
       const y = self.scroll();
@@ -92,57 +94,27 @@ function initNav() {
   });
 }
 
-/* ---------------------------------------------------------------- opening */
+/* ---------------------------------------------------------------- opening: one pinned, scrubbed sequence (see hero-scene.ts) */
 function initHero() {
-  const lines = qa('.hero__line [data-i]');
-  const intro = qa('.hero [data-intro]').filter((el) => !el.classList.contains('hero__line'));
-  const rows = qa('.index__row');
-  const fill = q('.index__trace-fill')!;
-  const grid = q('.hero__grid')!, glow1 = q('.hero__glow .g1')!, glow2 = q('.hero__glow .g2')!;
   const hero = q('.hero')!;
-  const nodeAt = (i: number) => (rows.length > 1 ? (i + 0.5) / rows.length : 1);   // fill fraction at which node i is reached
-  // The trace fills 0 -> 1 across the nodes; rows below the current fill light up.
-  let drawn = 0;
-  const paint = (f: number) => {
-    drawn = f;
-    gsap.set(fill, { scaleY: f });
-    rows.forEach((r, i) => r.classList.toggle('is-lit', f >= (i === 0 ? 0.001 : i / (rows.length - 1)) - 0.001));
-  };
-
-  gsap.set(lines, { yPercent: 105, y: 0 });
-  gsap.set(intro, { opacity: 0, y: 24 });
-  gsap.set(rows, { opacity: 0, x: 18 });
-  paint(0);
+  let target = 0;
+  const scene = initHeroScene(hero, { reduced, getP: () => target, setTone: (t) => setTone(t) });
   root.classList.add('ready');
-
-  const tl = gsap.timeline({ defaults: { ease: EASE }, delay: 0.1 });
-  tl.to(lines, { yPercent: 0, duration: 1.15, stagger: 0.11 }, 0)
-    .to(intro, { opacity: 1, y: 0, duration: 1, stagger: STAGGER }, 0.35)
-    .to(rows, { opacity: 1, x: 0, duration: 0.9, stagger: STAGGER }, 0.5)
-    .to({ f: 0 }, { f: 0.08, duration: 0.9, ease: 'power2.inOut', onUpdate() { paint(Math.max(drawn, (this.targets()[0] as { f: number }).f)); } }, 0.9);
-
-  // Scroll: the trace carries on down the index while the first light scene rises over the hero.
-  // The curtain covers the index at roughly 0.55 of this range, so the trace completes by 0.45.
-  const travel = () => hero.getBoundingClientRect().height;
+  if (reduced) return;
+  const chars = qa('.hero .ch > span'), subs = qa('.hero__sub > span');
+  gsap.set(chars, { yPercent: 118 }); gsap.set(subs, { clipPath: 'inset(0 100% 0 0)', x: -10 });
+  const state = { v: 0 };
+  const run = () => gsap.timeline({ defaults: { ease: EASE } })
+    .to(state, { v: 1, duration: 2.8, ease: 'power2.out', onUpdate: () => scene.setIntro(state.v) }, 0)
+    .to(chars, { yPercent: 0, duration: 1.5, stagger: 0.075 }, 0.2)
+    .to(subs, { clipPath: 'inset(0 0% 0 0)', x: 0, duration: 1.3, ease: 'power3.inOut' }, 1.15);
+  (document.fonts?.ready ?? Promise.resolve()).then(run);
+  const phone = matchMedia('(max-width: 700px)');
   ScrollTrigger.create({
-    start: 0, end: () => travel(), scrub: true, invalidateOnRefresh: true,
-    onUpdate: (self) => {
-      const p = self.progress;
-      if (tl.isActive() && p < 0.01) return;
-      paint(Math.max(0.08, clamp01(p / 0.42)));
-      if (!lite) {
-        gsap.set(grid, { y: -p * 36, scale: 1 - p * 0.05, opacity: 1 - p * 0.75, transformOrigin: '50% 0%' });
-        gsap.set(glow1, { y: p * 80 }); gsap.set(glow2, { y: -p * 50 });
-      }
-    },
+    trigger: hero, start: 'top top', end: () => '+=' + Math.round(innerHeight * (phone.matches ? 1.15 : 1.75)),
+    pin: '.hero__pin', pinSpacing: true, anticipatePin: 1, invalidateOnRefresh: true,
+    onUpdate: (self) => { target = self.progress; },
   });
-  void nodeAt;
-
-  // Gentle pointer response on the glow (mouse only).
-  if (!coarse && !lite && !reduced) {
-    const x1 = gsap.quickTo(glow1, 'x', { duration: 1.4, ease: 'power3.out' }), y1 = gsap.quickTo(glow1, 'yPercent', { duration: 1.4, ease: 'power3.out' });
-    hero.addEventListener('pointermove', (e) => { const r = hero.getBoundingClientRect(); x1(((e.clientX - r.left) / r.width - 0.5) * -60); y1(((e.clientY - r.top) / r.height - 0.5) * -8); });
-  }
 }
 
 /* ---------------------------------------------------------------- shared reveals */
@@ -185,92 +157,69 @@ function initZoom() {
   });
 }
 
-/* ---------------------------------------------------------------- hero: a signal travels the index trace, row to row, through the real project list */
-function initSignal() {
-  const sig = q('.index__signal'), rows = qa('.index__row'); if (!sig || !rows.length || reduced) return;
-  const wrap = q('.index-wrap')!;
-  const ys = () => rows.map((r) => r.offsetTop + r.offsetHeight / 2 - rows[0].offsetHeight / 2);
-  const tl = gsap.timeline({ repeat: -1, repeatDelay: 1.6, delay: 2.2, paused: false });
-  const build = () => { tl.clear(); ys().forEach((y, i) => { tl.to(sig, { y, opacity: 1, duration: i ? 0.9 : 0.01, ease: 'power2.inOut' }); tl.add(() => rows.forEach((r, k) => r.classList.toggle('is-ping', k === i)), '>'); tl.to({}, { duration: 0.45 }); }); tl.to(sig, { opacity: 0, duration: 0.4 }).add(() => rows.forEach((r) => r.classList.remove('is-ping'))); };
-  gsap.set(sig, { opacity: 0, y: 0 });
-  build();
-  addEventListener('resize', () => { build(); tl.restart(); });
-  ScrollTrigger.create({ trigger: wrap, start: 'top bottom', end: 'bottom top', onToggle: (s) => (s.isActive ? tl.resume() : tl.pause()) });
-}
-
-/* ---------------------------------------------------------------- Pwndbg: old options resolve into subcommands (about a second, no pin) */
+/* ---------------------------------------------------------------- Pwndbg: the refactor, explained in one scrubbed timeline (no pin, no buttons) */
 function initCymbol() {
   const cym = q('[data-cym]'); if (!cym) return;
-  const rows = qa('.cym__row', cym), links = rows.map((r) => q('.cym__link i', r)!), news = rows.map((r) => q('.cym__new code', r)!);
-  gsap.set(links, { scaleX: 0 }); gsap.set(news, { opacity: 0.2, x: -8 });
-  ScrollTrigger.create({
-    trigger: q('.cym__table', cym)!, start: 'top 80%', once: true,
-    onEnter: () => {
-      const tl = gsap.timeline({ defaults: { ease: EASE } });
-      rows.forEach((r, i) => {
-        tl.to(links[i], { scaleX: 1, duration: 0.55 }, i * 0.1)
-          .to(news[i], { opacity: 1, x: 0, duration: 0.6 }, i * 0.1 + 0.18)
-          .add(() => r.classList.add('is-done'), i * 0.1 + 0.5);
-      });
-    },
-  });
+  const usage = qa('.cym__usage p', cym), rows = qa('.cym__row', cym);
+  const olds = rows.map((r) => q('.cym__old code', r)!), links = rows.map((r) => q('.cym__link i', r)!), news = rows.map((r) => q('.cym__new code', r)!);
+  const head = q('.cym__table thead', cym)!, added = q('.cym__added', cym)!, fig = q('.evidence', cym)!, img = q('img', fig)!;
+  gsap.set(usage, { clipPath: 'inset(0 100% 0 0)' }); gsap.set(head, { opacity: 0 });
+  gsap.set(olds, { opacity: 0, x: -12, '--s': '0%' }); gsap.set(links, { scaleX: 0 }); gsap.set(news, { opacity: 0, x: -14 });
+  gsap.set(added, { opacity: 0, y: 10 }); gsap.set(fig, { clipPath: 'inset(0 0 100% 0)' }); gsap.set(img, { scale: 1.08 });
+  const tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: cym, start: 'top 74%', end: 'bottom 46%', scrub: 0.7 } });
+  tl.to(usage[0], { clipPath: 'inset(0 0% 0 0)', duration: 0.8 }, 0)                                // 1  the old syntax
+    .to(head, { opacity: 1, duration: 0.3 }, 0.7)
+    .to(olds, { opacity: 1, x: 0, duration: 0.5, stagger: 0.07 }, 0.8)                                // 2  each old option
+    .to(links, { scaleX: 1, duration: 0.55, stagger: 0.09 }, 1.45)                                    // 3  paths draw
+    .to(olds, { '--s': '100%', opacity: 0.45, duration: 0.45, stagger: 0.07 }, 1.7)                   // 4  old options struck
+    .to(news, { opacity: 1, x: 0, duration: 0.5, stagger: 0.09 }, 1.8)                                // 5  subcommands settle
+    .to(usage[1], { clipPath: 'inset(0 0% 0 0)', duration: 0.8 }, 2.6)                                // 6  new syntax
+    .to(added, { opacity: 1, y: 0, duration: 0.4 }, 3.2)
+    .to(fig, { clipPath: 'inset(0 0 0% 0)', duration: 0.9 }, 3.3).to(img, { scale: 1, duration: 0.9 }, 3.3)   // 7  the patch evidence
+    .to({}, { duration: 0.3 });
 }
 
-/* ---------------------------------------------------------------- toolkit: tools <-> projects, with a drawn trace (interaction; works with or without motion) */
+/* ---------------------------------------------------------------- toolkit: names always visible; a trace and a wave pass through the groups; focus shows the evidence */
 function initKit() {
-  const kit = q('.kit'), wrap = q('[data-kit]'); if (!kit || !wrap) return;
-  const svg = q<SVGSVGElement>('.kit__trace', wrap)!;
-  const tools = qa<HTMLButtonElement>('.tool', wrap), chips = qa<HTMLAnchorElement>('.chip', wrap);
-  const ns = 'http://www.w3.org/2000/svg';
-  svg.innerHTML = '<defs><linearGradient id="kit-grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#FF6BB5"/></linearGradient></defs>';
-  const idsOf = (t: HTMLElement) => (t.dataset.projects || '').split(' ').filter(Boolean);
-  let locked: HTMLButtonElement | null = null;
-
-  const draw = (pairs: [HTMLElement, HTMLElement][]) => {
-    qa('path', svg).forEach((p) => p.remove());
-    if (!desktop() || !pairs.length) return;
-    const w = wrap.getBoundingClientRect();
-    svg.setAttribute('viewBox', `0 0 ${w.width} ${w.height}`);
-    q('#kit-grad', svg)?.setAttribute('x2', String(w.width));
-    pairs.forEach(([t, c]) => {
-      const a = t.getBoundingClientRect(), b = c.getBoundingClientRect();
-      const x1 = a.right - w.left, y1 = a.top + a.height / 2 - w.top, x2 = b.left - w.left, y2 = b.top + b.height / 2 - w.top;
-      const dx = Math.max(40, (x2 - x1) / 2);
-      const path = document.createElementNS(ns, 'path');
-      path.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
-      svg.appendChild(path);
-      const len = path.getTotalLength();
-      if (reduced) return;
-      path.style.strokeDasharray = `${len}`; path.style.strokeDashoffset = `${len}`;
-      gsap.to(path, { strokeDashoffset: 0, duration: 0.7, ease: EASE });
-    });
+  const board = q('[data-kit]'); if (!board) return;
+  const cols = qa('.kit__col', board), tools = qa<HTMLButtonElement>('.tool', board), focus = q('[data-focus]', board)!, rail = q<SVGSVGElement>('.kit__rail', board)!;
+  const ns = 'http://www.w3.org/2000/svg', def = focus.innerHTML;
+  const names = (c: Element) => qa('.tool__name', c);
+  // focus: dim the rest and show what the tool is based on
+  const label = { work: 'Work', project: 'Project', self: 'Self-assessed', early: 'Early experience' } as const;
+  const show = (t: HTMLButtonElement | null) => {
+    board.classList.toggle('has-focus', !!t); tools.forEach((x) => x.classList.toggle('is-on', x === t));
+    if (!t) { focus.innerHTML = def; return; }
+    const b = t.dataset.basis as keyof typeof label;
+    focus.innerHTML = `<span><b>${t.dataset.name}</b> ${label[b]}: ${t.dataset.detail}${t.dataset.href ? ` <a class="textlink" href="${t.dataset.href}">See it</a>` : ''}</span>`;
   };
-  const show = (activeTools: HTMLElement[], activeChips: HTMLElement[]) => {
-    kit.classList.toggle('has-active', activeTools.length + activeChips.length > 0);
-    tools.forEach((t) => t.classList.toggle('is-on', activeTools.includes(t)));
-    chips.forEach((c) => c.classList.toggle('is-on', activeChips.includes(c)));
-    const pairs: [HTMLElement, HTMLElement][] = [];
-    activeTools.forEach((t) => activeChips.forEach((c) => { if (idsOf(t).includes(c.dataset.id!)) pairs.push([t, c]); }));
-    draw(pairs);
-  };
-  const forTool = (t: HTMLButtonElement) => show([t], chips.filter((c) => idsOf(t).includes(c.dataset.id!)));
-  const forChip = (c: HTMLAnchorElement) => show(tools.filter((t) => idsOf(t).includes(c.dataset.id!)), [c]);
-  const rest = () => (locked ? forTool(locked) : show([], []));
-
-  tools.forEach((t) => {
-    t.addEventListener('pointerenter', () => forTool(t)); t.addEventListener('focus', () => forTool(t));
-    t.addEventListener('pointerleave', rest); t.addEventListener('blur', rest);
-    t.addEventListener('click', () => {
-      locked = locked === t ? null : t;
-      tools.forEach((x) => x.setAttribute('aria-pressed', String(x === locked)));
-      rest(); if (locked) forTool(locked);
+  tools.forEach((t) => { t.addEventListener('pointerenter', () => show(t)); t.addEventListener('focus', () => show(t)); t.addEventListener('pointerleave', () => show(null)); t.addEventListener('blur', () => show(null)); t.addEventListener('click', () => { if (t.dataset.href) scrollToId(t.dataset.href); }); });
+  if (reduced) return;
+  // reveal: coordinated wave across the columns (names are in the HTML and stay readable if this never runs)
+  gsap.set(tools, { opacity: 0, y: 14 });
+  ScrollTrigger.create({ trigger: board, start: 'top 82%', once: true, onEnter: () => gsap.to(tools, { opacity: 1, y: 0, duration: 0.9, ease: EASE, stagger: { each: 0.045, grid: 'auto', from: 'start' }, clearProps: 'transform' }) });
+  // trace: a line through the four group headings with a pulse that visits each and lights its names in turn
+  let tlp: gsap.core.Timeline | null = null;
+  const build = () => {
+    tlp?.kill(); rail.replaceChildren();
+    if (!desktop()) return;
+    const w = board.getBoundingClientRect(); rail.setAttribute('viewBox', `0 0 ${w.width} 24`);
+    const xs = cols.map((c) => (q('.kit__title', c)!.getBoundingClientRect().left - w.left) + 4);
+    const line = document.createElementNS(ns, 'line'); line.setAttribute('x1', String(xs[0])); line.setAttribute('x2', String(xs[xs.length - 1] + (w.width - xs[xs.length - 1]) * 0.18)); line.setAttribute('y1', '12'); line.setAttribute('y2', '12'); rail.appendChild(line);
+    const dots = xs.map((x) => { const c = document.createElementNS(ns, 'circle'); c.setAttribute('cx', String(x)); c.setAttribute('cy', '12'); c.setAttribute('r', '3'); rail.appendChild(c); return c; });
+    const pulse = document.createElementNS(ns, 'circle'); pulse.setAttribute('r', '5'); pulse.setAttribute('cy', '12'); pulse.setAttribute('cx', String(xs[0])); pulse.setAttribute('class', 'kit__pulse'); rail.appendChild(pulse);
+    const len = line.getTotalLength(); gsap.fromTo(line, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 1.4, ease: 'power2.inOut', scrollTrigger: { trigger: board, start: 'top 80%', once: true } });
+    tlp = gsap.timeline({ repeat: -1, paused: true, delay: 1.6 });
+    cols.forEach((c, i) => {
+      if (i) tlp!.to(pulse, { attr: { cx: xs[i] }, duration: 1.1, ease: 'power2.inOut' });
+      tlp!.to(dots[i], { attr: { r: 5.5 }, duration: 0.25, yoyo: true, repeat: 1 }, '>-0.1')
+        .to(names(c), { '--w': 1, duration: 0.35, stagger: 0.14, yoyo: true, repeat: 1, ease: 'power1.inOut' }, '<')
+        .to({}, { duration: 0.9 });
     });
-  });
-  chips.forEach((c) => {
-    c.addEventListener('pointerenter', () => forChip(c)); c.addEventListener('focus', () => forChip(c));
-    c.addEventListener('pointerleave', rest); c.addEventListener('blur', rest);
-  });
-  addEventListener('resize', rest);
+    ScrollTrigger.create({ trigger: board, start: 'top 85%', end: 'bottom 10%', onToggle: (s) => (s.isActive ? tlp!.play() : tlp!.pause()) });
+  };
+  build(); let rz = 0; addEventListener('resize', () => { clearTimeout(rz); rz = window.setTimeout(() => { build(); ScrollTrigger.refresh(); }, 150); });
+  board.addEventListener('pointerenter', () => tlp?.pause()); board.addEventListener('pointerleave', () => tlp?.play());
 }
 
 /* ---------------------------------------------------------------- experience timeline */
@@ -290,34 +239,14 @@ function initTimeline() {
   });
 }
 
-/* ---------------------------------------------------------------- contact: a signal travels the rail to the channel in focus */
+/* ---------------------------------------------------------------- contact: the visual loops on its own; hovering a link brightens its arc */
 function initContact() {
-  const box = q('[data-channels]'); if (!box) return;
-  const rows = qa('.channel', box), signal = q('.channels__signal', box)!, fill = q('.channels__fill', box)!;
-  const centre = (i: number) => rows[i].offsetTop + rows[i].offsetHeight / 2;
-  let active = 0;
-  const go = (i: number, instant = false) => {
-    active = i;
-    rows.forEach((r, k) => r.classList.toggle('is-active', k === i));
-    if (instant || reduced) gsap.set(signal, { y: centre(i) }); else gsap.to(signal, { y: centre(i), duration: 0.7, ease: EASE, overwrite: true });
-  };
-  rows.forEach((r, i) => { r.addEventListener('pointerenter', () => go(i)); r.addEventListener('focusin', () => go(i)); });
-  box.addEventListener('pointerleave', () => go(0));
-  box.addEventListener('focusout', (e) => { if (!box.contains((e as FocusEvent).relatedTarget as Node)) go(0); });
-  addEventListener('resize', () => go(active, true));
-  gsap.set(signal, { y: centre(0), opacity: reduced ? 1 : 0 });
-  rows.forEach((r, i) => r.classList.toggle('is-active', i === 0));
-  if (reduced) return;
-  gsap.set(fill, { scaleY: 0 }); gsap.set(rows, { opacity: 0, y: 18 });
-  ScrollTrigger.create({
-    trigger: box, start: 'top 82%', once: true,
-    onEnter: () => {
-      const tl = gsap.timeline({ defaults: { ease: EASE } });
-      tl.to(fill, { scaleY: 1, duration: 1.3 }, 0)
-        .to(rows, { opacity: 1, y: 0, duration: 0.9, stagger: STAGGER, clearProps: 'transform' }, 0.15)
-        .fromTo(signal, { y: 0, opacity: 1 }, { y: centre(0), opacity: 1, duration: 1.2 }, 0)
-        .add(() => go(0, true));
-    },
+  const fig = q('[data-cvisual]'); if (!fig) return;
+  const vis = initContactVisual(fig, { reduced });
+  qa('.contact__links li').forEach((li) => {
+    const k = li.dataset.k!;
+    li.addEventListener('pointerenter', () => vis.hover(k)); li.addEventListener('focusin', () => vis.hover(k));
+    li.addEventListener('pointerleave', () => vis.hover(null)); li.addEventListener('focusout', () => vis.hover(null));
   });
 }
 
@@ -333,13 +262,13 @@ function initCopy() {
 }
 
 /* ---------------------------------------------------------------- boot */
-initKit(); initCopy(); initDemos();
+initCopy(); initDemos();
+// The pinned opening must be created first: every ScrollTrigger below it measures positions after its pin spacing.
 if (reduced) {
   root.classList.add('ready');
-  initNav(); initContact();
-  qa<HTMLElement>('.index__row').forEach((r) => r.classList.add('is-lit'));
+  initHero(); initNav(); initKit(); initContact();
 } else {
-  initNav(); initHero(); initSignal(); initReveals(); initZoom(); initCymbol(); initTimeline(); initContact();
+  initHero(); initNav(); initReveals(); initZoom(); initCymbol(); initKit(); initTimeline(); initContact();
 }
 const refresh = () => ScrollTrigger.refresh();
 document.fonts?.ready.then(refresh);

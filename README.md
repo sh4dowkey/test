@@ -3,4 +3,4 @@ Astro + TypeScript + GSAP + Lenis. `npm install && npm run dev`. Content in `src
 Tests: `npm run build && python3 tools/behaviour.py` (needs Python + Playwright); `python3 tools/shots.py <dir> <tag> <w> <h> [mobile]`.
 
 ## Demonstrations
-The CrawlX, CLI crawler and Cerberus sections are browser simulations over fixture data (see `docs/HANDOFF.md`). Run `python3 tools/qa.py` after `npm run build` for the browser checks.
+CrawlX, the CLI crawler and Project Cerberus are self-running browser simulations over fixture data. They have no controls; they loop while visible. See `docs/HANDOFF.md`. Run `npm run build` then `python3 tools/qa.py` for the browser checks, and `npm run build:production` to see which facts are still flagged for review.

@@ -1,282 +1,192 @@
 /**
- * Project Cerberus simulation. One state object drives every view:
- *   step      0..7   scenario progress; events, alerts, hunts and timeline items are all filtered by it
- *   host      selected machine (architecture view, also set by selecting an event)
- *   stage     selected pipeline stage
- *   ev        selected event (shown through the lens of the selected stage)
- *   hunt      active saved search;  filter  free text over the visible events
- * Going back a step removes everything that belongs to later steps, so the views can never disagree.
- * All data is fixture data from src/data/cerberus.ts. Nothing is executed and nothing is fetched.
+ * Project Cerberus: a self-running, looping simulation of the purple-team scenario in the Cerberus PDF.
+ * One loop position `u` (ms into a fixed cycle) drives everything: the three-plane scene (attacker, isolated lab
+ * network, observability), telemetry beams, attack paths, the event stream, alerts, hunt queries, the investigation
+ * timeline and the rulebook. Because every element is a function of u they cannot drift apart. Hover or focus a host,
+ * event or alert chip to inspect it; nothing has to be clicked. All data is fixture data (s../data/cerberus.ts);
+ * nothing is executed or fetched and no VM, SIEM or attack is running.
  */
-import { machines, edges, stages, rules, events, alerts, hunts, steps, timeline, statusLabel, liveRequirements, type Ev } from '../data/cerberus';
+import { machines, phases, events, alerts, hunts, timeline, rules, fired, pipeline, lab, buildLabel, liveRequirements, type Machine } from '../data/cerberus';
+import { createLoop, clamp, ease, esc } from './loop';
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const NS = 'http://www.w3.org/2000/svg';
-type Tab = 'arch' | 'telemetry' | 'scenario';
-const machineBy = new Map(machines.map((m) => [m.id, m]));
-const ruleBy = new Map(rules.map((r) => [r.id, r]));
+const starts: number[] = []; let acc = 0; phases.forEach((p) => { starts.push(acc); acc += p.dur; });
+const CYCLE = acc, FADE_OUT = 2300, FADE_IN = 900;
+const abs = (phase: number, at: number) => starts[phase] + at;
+const evAbs = new Map(events.map((e) => [e.id, abs(e.phase, e.at)]));
 const evBy = new Map(events.map((e) => [e.id, e]));
-const NSTEPS = steps.length;
+const mBy = new Map(machines.map((m) => [m.id, m]));
+const ruleBy = new Map(rules.map((r) => [r.id, r]));
+const ts = (ms: number) => { const s = Math.round(ms / 1000 * 4); return `T+${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+const PULSE = 950;
+
+interface Plate { id: 'siem' | 'lab' | 'atk'; label: string; cx: number; cy: number; w: number; d: number; sk: number }
+const SCENES = {
+  wide: { w: 780, h: 520, tile: { w: 100, h: 38 }, plates: [
+    { id: 'siem', label: 'OBSERVABILITY', cx: 390, cy: 74, w: 430, d: 74, sk: 38 }, { id: 'lab', label: 'CERBERUS-LAB-NET · 192.168.56.0/24 · ISOLATED', cx: 390, cy: 268, w: 640, d: 196, sk: 50 }, { id: 'atk', label: 'ATTACKER', cx: 390, cy: 462, w: 400, d: 72, sk: 38 }] as Plate[],
+    uv: { siem01: [0.5, 0.52], dc01: [0.5, 0.2], ca01: [0.14, 0.62], srv01: [0.86, 0.62], ws01: [0.5, 0.86], kali: [0.5, 0.52] } as Record<string, number[]> },
+  narrow: { w: 360, h: 610, tile: { w: 96, h: 40 }, plates: [
+    { id: 'siem', label: 'OBSERVABILITY', cx: 180, cy: 62, w: 250, d: 58, sk: 18 }, { id: 'lab', label: 'LAB-NET 192.168.56.0/24 · ISOLATED', cx: 180, cy: 282, w: 336, d: 250, sk: 22 }, { id: 'atk', label: 'ATTACKER', cx: 180, cy: 535, w: 250, d: 56, sk: 18 }] as Plate[],
+    uv: { siem01: [0.5, 0.52], dc01: [0.5, 0.15], ca01: [0.24, 0.46], srv01: [0.76, 0.46], ws01: [0.5, 0.86], kali: [0.5, 0.52] } as Record<string, number[]> },
+};
+/** Attack segments: drawn progressively inside their phase. */
+const ATTACKS = [{ from: 'kali', to: 'dc01', phase: 0, at: 4300, dur: 1500 }, { from: 'ws01', to: 'dc01', phase: 1, at: 500, dur: 1200 }, { from: 'kali', to: 'srv01', phase: 2, at: 300, dur: 1500 }, { from: 'kali', to: 'ca01', phase: 3, at: 400, dur: 1500, denied: true }];
 
 export function initCerberus(root: HTMLElement, opts: { reduced: boolean }) {
-  const S = { tab: 'arch' as Tab, step: 0, host: 'dc01' as string | null, stage: 'collect', ev: null as string | null, hunt: null as string | null, filter: '', layer: 'all' as 'all' | 'identity' | 'telemetry' | 'attack', playing: false };
-  let timer = 0, flowTimer = 0;
-
   root.innerHTML = `
-  <div class="cb__top">
+  <div class="cb__bar">
     <p class="cb__sim" role="note"><b>Simulation</b> Fixture events replayed in your browser. No VMs, SIEM or attacks are running.</p>
-    <dl class="cb__stats" aria-live="polite">
-      <div><dt>Step</dt><dd data-k="step">0/${NSTEPS}</dd></div><div><dt>Events ingested</dt><dd data-k="events">0</dd></div>
-      <div><dt>Alerts</dt><dd data-k="alerts">0</dd></div><div><dt>Hosts involved</dt><dd data-k="hosts">0</dd></div><div><dt>Accounts</dt><dd data-k="accts">0</dd></div>
-    </dl>
+    <p class="cb__meta"><span data-k="events">0 events</span><span data-k="alerts">0 alerts</span></p>
+    <ol class="cb__phases" aria-hidden="true">${phases.slice(0, 7).map((p) => `<li data-ph title="${esc(p.name)}"><i></i></li>`).join('')}</ol>
+    <span class="dm__loop" aria-hidden="true"><i data-loop></i></span>
   </div>
-  <div class="cb__ctrl">
-    <div class="cb__btns" role="group" aria-label="Scenario controls">
-      <button type="button" class="dm__btn" data-act="reset">Reset</button>
-      <button type="button" class="dm__btn" data-act="prev" aria-label="Previous step">Back</button>
-      <button type="button" class="dm__btn dm__btn--main" data-act="next" aria-label="Next step">Next step</button>
-      <button type="button" class="dm__btn" data-act="play" aria-pressed="false">Auto-play</button>
+  <div class="cb__stage" data-stage>
+    <div class="cb__map"><svg data-svg role="img" aria-label="Isometric view of the lab: an attacker machine, the isolated lab network with four Windows hosts, and the SIEM host above it receiving telemetry."></svg>
+      <ol class="cb__pipe" data-pipe aria-label="Telemetry pipeline">${pipeline.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
     </div>
-    <ol class="cb__dots" aria-label="Scenario steps">${steps.map((s) => `<li><button type="button" data-act="goto" data-n="${s.n}" aria-label="Step ${s.n}: ${esc(s.name)}"><i></i><span>${esc(s.name)}</span></button></li>`).join('')}</ol>
-  </div>
-  <div class="cb__tabs" role="tablist" aria-label="Views">
-    <button role="tab" id="cb-t-arch" aria-controls="cb-p-arch" data-tab="arch">Architecture</button>
-    <button role="tab" id="cb-t-telemetry" aria-controls="cb-p-telemetry" data-tab="telemetry">Telemetry pipeline</button>
-    <button role="tab" id="cb-t-scenario" aria-controls="cb-p-scenario" data-tab="scenario">Scenario and investigation</button>
-  </div>
-
-  <div class="cb__panel" role="tabpanel" id="cb-p-arch" aria-labelledby="cb-t-arch" data-p="arch">
-    <div class="cb__arch">
-      <div class="cb__map">
-        <div class="cb__layers" role="group" aria-label="Show connections">
-          ${(['all', 'identity', 'telemetry', 'attack'] as const).map((l) => `<button type="button" data-layer="${l}" aria-pressed="${l === 'all'}">${{ all: 'All', identity: 'Identity', telemetry: 'Log flow', attack: 'Emulated path' }[l]}</button>`).join('')}
-        </div>
-        <svg viewBox="0 0 760 420" role="group" aria-label="Lab topology. Select a machine to see its details." data-svg>
-          <rect class="cb__net" x="28" y="24" width="704" height="384" rx="22"/>
-          <text class="cb__nettxt" x="48" y="50">Isolated lab network (host-only)</text>
-          <g data-edges></g><g data-nodes></g>
-        </svg>
-        <p class="cb__legend" aria-hidden="true"><i class="s s--built"></i>built <i class="s s--unverified"></i>unverified <i class="s s--planned"></i>planned</p>
-      </div>
-      <div class="cb__detail" data-host-detail aria-live="polite"></div>
+    <div class="cb__side">
+      <div class="cb__phase" data-phase aria-live="off"></div>
+      <div class="cb__streamwrap"><p class="cb__h">Event stream <span>SIEM01 · fixtures</span></p><ol class="cb__stream" data-stream></ol></div>
+      <div class="cb__detail" data-detail></div>
     </div>
+    <div class="cb__alerts"><p class="cb__h">Alerts <span data-acount>0</span></p><ol data-alerts></ol></div>
+    <div class="cb__aux" data-aux></div>
   </div>
-
-  <div class="cb__panel" role="tabpanel" id="cb-p-telemetry" aria-labelledby="cb-t-telemetry" data-p="telemetry" hidden>
-    <ol class="cb__pipe" data-pipe></ol>
-    <div class="cb__tele">
-      <div class="cb__stagebox" data-stage-detail aria-live="polite"></div>
-      <div class="cb__streambox">
-        <div class="cb__streamhead">
-          <p class="dm__h">Event stream <span class="dm__dim" data-stream-count></span></p>
-          <input type="search" data-filter placeholder="Filter: host, account, event ID" aria-label="Filter visible events" />
-        </div>
-        <div class="cb__hunts" data-hunts></div>
-        <ul class="cb__stream" data-stream></ul>
-      </div>
-    </div>
-  </div>
-
-  <div class="cb__panel" role="tabpanel" id="cb-p-scenario" aria-labelledby="cb-t-scenario" data-p="scenario" hidden>
-    <div class="cb__scen">
-      <div class="cb__stepcard" data-stepcard aria-live="polite"></div>
-      <div class="cb__side2">
-        <div data-alerts></div>
-        <div data-cbtl></div>
-      </div>
-    </div>
-    <div class="cb__evbox" data-evbox></div>
-  </div>
-
   <details class="cb__live"><summary>What a live connection would need</summary>
     <ul>${liveRequirements.map(([k, v]) => `<li><b>${esc(k)}</b> ${esc(v)}</li>`).join('')}</ul>
-    <p class="dm__dim">The design keeps the data in structured files shaped like SIEM documents, so a read-only API can replace them without changing the views.</p>
   </details>
-  <p class="dm__note">Event IDs are the standard Windows and Sysmon ones. Accounts, timings, the template name and every alert are invented fixtures, not captured from a lab. Built or planned status comes from the public repository and the owner’s brief. <a href="https://github.com/sh4dowkey/ad-attack-defense-lab" rel="noopener">Public lab repository</a>.</p>`;
+  <p class="dm__note">Architecture, addressing, accounts, queries and rule logic come from the Cerberus design document. That document is a plan, not evidence of a running lab. In the public lab repository only a domain controller and a Windows 10 client are built, with different addressing (192.168.10.x, corp.local); the other machines are planned. Every event and alert here is an illustrative fixture, not captured telemetry. Credentials and attack commands are intentionally not reproduced.</p>`;
 
   const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s)!;
-  const $$ = <T extends Element = HTMLElement>(s: string) => Array.from(root.querySelectorAll<T>(s));
-  const visible = () => events.filter((e) => e.step <= S.step);
+  const svg = $<SVGSVGElement>('[data-svg]'), stage = $('[data-stage]');
+  let mode: 'wide' | 'tall' = root.clientWidth < 760 ? 'tall' : 'wide';
+  let sc = SCENES.wide, tiles = new Map<string, { g: SVGGElement; x: number; y: number; badge: SVGTextElement }>(), plates = new Map<string, SVGGElement>(), beams = new Map<string, { d: string; pts: number[][]; el: SVGPathElement }>();
+  let pulseEls: { el: SVGCircleElement; id: string; host: string }[] = [], arcs: { el: SVGPathElement; head: SVGCircleElement; deny: SVGTextElement; a: typeof ATTACKS[number]; pts: number[][] }[] = [];
+  let hover: { kind: 'ev' | 'host'; id: string } | null = null;
   const mk = (tag: string, attrs: Record<string, string>, parent?: Element) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent?.appendChild(e); return e; };
+  const bez = (p: number[][], t: number) => { const u = 1 - t; return [u * u * u * p[0][0] + 3 * u * u * t * p[1][0] + 3 * u * t * t * p[2][0] + t * t * t * p[3][0], u * u * u * p[0][1] + 3 * u * u * t * p[1][1] + 3 * u * t * t * p[2][1] + t * t * t * p[3][1]]; };
+  const pathOf = (p: number[][]) => `M${p[0][0]} ${p[0][1]}C${p[1][0]} ${p[1][1]} ${p[2][0]} ${p[2][1]} ${p[3][0]} ${p[3][1]}`;
 
-  /* ---------------------------------------------------------- persistent SVG */
-  const nodesG = $('[data-nodes]'), edgesG = $('[data-edges]');
-  const edgeEls = new Map<string, SVGLineElement>(), nodeEls = new Map<string, SVGGElement>();
-  edges.forEach((e) => { const a = machineBy.get(e.a)!, b = machineBy.get(e.b)!; edgeEls.set(e.id, mk('line', { x1: String(a.x), y1: String(a.y), x2: String(b.x), y2: String(b.y), class: 'cb__e cb__e--' + e.layer }, edgesG) as SVGLineElement); });
-  machines.forEach((m) => {
-    const g = mk('g', { class: 'cb__n', transform: `translate(${m.x} ${m.y})`, tabindex: '0', role: 'button', 'data-id': m.id, 'aria-label': `${m.name}, ${m.role}, ${statusLabel[m.status]}` }, nodesG) as SVGGElement;
-    mk('rect', { class: 'cb__nbox', x: '-62', y: '-30', width: '124', height: '60', rx: '14' }, g);
-    mk('circle', { class: 'cb__ndot', cx: '-46', cy: '-14', r: '4.5' }, g);
-    const t = mk('text', { class: 'cb__nname', x: '-36', y: '-9' }, g); t.textContent = m.name;
-    const r = mk('text', { class: 'cb__nrole', x: '-50', y: '14' }, g); r.textContent = m.role.length > 24 ? m.role.slice(0, 22) + '…' : m.role;
-    mk('circle', { class: 'cb__cnt', cx: '58', cy: '-28', r: '10' }, g); const c = mk('text', { class: 'cb__cnttxt', x: '58', y: '-24.5', 'text-anchor': 'middle' }, g); c.setAttribute('data-cnt', m.id);
-    mk('circle', { class: 'cb__al', cx: '58', cy: '28', r: '5' }, g);
-    nodeEls.set(m.id, g);
-    const pick = () => { S.host = m.id; draw(); };
-    g.addEventListener('click', pick);
-    g.addEventListener('keydown', (e) => { const k = (e as KeyboardEvent).key; if (k === 'Enter' || k === ' ') { e.preventDefault(); pick(); } });
-  });
-
-  function drawArch() {
-    const vis = visible(), curEdges = new Set(S.step ? steps[S.step - 1].edges : []);
-    const hostsWithEv = new Set(vis.map((e) => e.host));
-    edges.forEach((e) => {
-      const el = edgeEls.get(e.id)!;
-      el.classList.toggle('is-dim', S.layer !== 'all' && S.layer !== e.layer);
-      el.classList.toggle('is-on', curEdges.has(e.id));
-      el.classList.toggle('is-flow', e.layer === 'telemetry' && hostsWithEv.has(e.a));
+  function build() {
+    sc = mode === 'wide' ? SCENES.wide : SCENES.narrow;
+    svg.setAttribute('viewBox', `0 0 ${sc.w} ${sc.h}`); svg.replaceChildren(); tiles = new Map(); plates = new Map(); beams = new Map(); pulseEls = []; arcs = [];
+    const gPlates = mk('g', {}, svg), gBeams = mk('g', {}, svg), gArcs = mk('g', {}, svg), gTiles = mk('g', {}, svg), gPulse = mk('g', {}, svg);
+    const corner = (p: Plate) => { const A = [p.cx - p.w / 2 + p.sk, p.cy - p.d / 2], B = [p.cx + p.w / 2 + p.sk, p.cy - p.d / 2], D = [p.cx - p.w / 2 - p.sk, p.cy + p.d / 2]; return { A, B, D, C: [B[0] + D[0] - A[0], B[1] + D[1] - A[1]] }; };
+    const at = (p: Plate, u: number, v: number) => { const c = corner(p); return [c.A[0] + u * (c.B[0] - c.A[0]) + v * (c.D[0] - c.A[0]), c.A[1] + u * (c.B[1] - c.A[1]) + v * (c.D[1] - c.A[1])]; };
+    sc.plates.forEach((p) => {
+      const g = mk('g', { class: 'cb__plate', 'data-plate': p.id }, gPlates) as SVGGElement; const c = corner(p);
+      mk('polygon', { class: 'cb__plateface', points: [c.A, c.B, c.C, c.D].map((q) => q.join(',')).join(' ') }, g);
+      mk('polygon', { class: 'cb__plateedge', points: [c.D, c.C, [c.C[0], c.C[1] + 7], [c.D[0], c.D[1] + 7]].map((q) => q.join(',')).join(' ') }, g);
+      const t = mk('text', { class: 'cb__platelbl', x: String(c.A[0] + 16 - p.sk * 0.2), y: String(c.A[1] + (mode === 'wide' ? 15 : 14)) }, g); t.textContent = p.label;
+      plates.set(p.id, g);
     });
-    const alerting = new Set(alerts.filter((a) => a.step <= S.step).map((a) => a.host));
+    const plate = (id: string) => sc.plates.find((p) => p.id === id)!;
+    const pos: Record<string, number[]> = {}; machines.forEach((m) => { const uv = sc.uv[m.id]; pos[m.id] = at(plate(m.plate), uv[0], uv[1]); });
+    const T = sc.tile;
+    // telemetry beams: every Windows host up to SIEM01
+    machines.filter((m) => m.plate === 'lab').forEach((m) => {
+      const a = pos[m.id], b = pos['siem01'], y1 = a[1] - T.h / 2, y2 = b[1] + T.h / 2, mid = (y1 + y2) / 2;
+      const pts = [[a[0], y1], [a[0], mid], [b[0] + (a[0] - b[0]) * 0.12, mid], [b[0] + (a[0] - b[0]) * 0.12, y2]];
+      beams.set(m.id, { d: pathOf(pts), pts, el: mk('path', { class: 'cb__beam', d: pathOf(pts) }, gBeams) as SVGPathElement });
+    });
+    // attack paths
+    ATTACKS.forEach((a) => {
+      const f = pos[a.from], t = pos[a.to], up = f[1] > t[1], y1 = f[1] + (up ? -T.h / 2 : T.h / 2), y2 = t[1] + (up ? T.h / 2 : -T.h / 2), mid = (y1 + y2) / 2, bend = (a.from === 'ws01' ? 70 : 0);
+      const pts = [[f[0], y1], [f[0] + bend, mid], [t[0] + bend, mid], [t[0], y2]];
+      const el = mk('path', { class: 'cb__arc', d: pathOf(pts), pathLength: '1' }, gArcs) as SVGPathElement;
+      const head = mk('circle', { class: 'cb__archead', r: '3.6' }, gArcs) as SVGCircleElement; const deny = mk('text', { class: 'cb__deny', 'text-anchor': 'middle' }, gArcs) as SVGTextElement; deny.textContent = '✕';
+      arcs.push({ el, head, deny, a, pts });
+    });
+    // tiles
     machines.forEach((m) => {
-      const g = nodeEls.get(m.id)!;
-      g.dataset.status = m.status; g.classList.toggle('is-sel', S.host === m.id);
-      g.classList.toggle('has-ev', vis.some((e) => e.host === m.id)); g.classList.toggle('has-alert', alerting.has(m.id));
-      const n = vis.filter((e) => e.host === m.id).length;
-      g.querySelector('[data-cnt]')!.textContent = String(n);
-      g.classList.toggle('show-cnt', n > 0);
+      const [x, y] = pos[m.id];
+      const g = mk('g', { class: 'cb__tile', transform: `translate(${x} ${y})`, tabindex: '0', role: 'button', 'data-host': m.id, 'data-build': m.build, 'aria-label': `${m.name}, ${m.role}, ${m.ip}, ${buildLabel[m.build]}` }, gTiles) as SVGGElement;
+      mk('rect', { class: 'cb__tbase', x: String(-T.w / 2), y: String(-T.h / 2 + 5), width: String(T.w), height: String(T.h), rx: '9' }, g);
+      mk('rect', { class: 'cb__tface', x: String(-T.w / 2), y: String(-T.h / 2), width: String(T.w), height: String(T.h), rx: '9' }, g);
+      mk('circle', { class: 'cb__tdot', cx: String(-T.w / 2 + 12), cy: '-5', r: '3.6' }, g);
+      const n = mk('text', { class: 'cb__tname', x: String(-T.w / 2 + 22), y: '-1' }, g); n.textContent = m.name;
+      const ip = mk('text', { class: 'cb__tip', x: String(-T.w / 2 + 12), y: '12' }, g); ip.textContent = m.ip;
+      const badge = mk('text', { class: 'cb__tbadge', x: String(T.w / 2 - 8), y: '-2', 'text-anchor': 'end' }, g) as SVGTextElement;
+      tiles.set(m.id, { g, x, y, badge });
     });
-    // host details
-    const m = S.host ? machineBy.get(S.host) : null, d = $('[data-host-detail]');
-    if (!m) { d.innerHTML = '<p class="dm__dim">Select a machine.</p>'; return; }
-    const hev = vis.filter((e) => e.host === m.id), hal = alerts.filter((a) => a.step <= S.step && a.host === m.id);
-    d.innerHTML = `<p class="dm__h">${esc(m.name)} <span class="cb__st cb__st--${m.status}">${statusLabel[m.status]}</span></p>
-      <p class="cb__role">${esc(m.role)}</p>
-      <dl class="cb__kv">${m.os ? `<div><dt>OS</dt><dd>${esc(m.os)}</dd></div>` : ''}${m.ip ? `<div><dt>Address</dt><dd><code>${m.ip}</code></dd></div>` : ''}<div><dt>Source</dt><dd>${esc(m.source)}</dd></div></dl>
-      <p class="dm__h dm__h--s">Services</p><ul class="cb__svc">${m.services.map((s) => `<li><i class="s s--${s.status}"></i>${esc(s.name)}<span>${statusLabel[s.status]}</span></li>`).join('')}</ul>
-      ${m.review ? `<p class="cb__review"><b>To confirm</b> ${esc(m.review)}</p>` : ''}
-      <p class="dm__h dm__h--s">In this simulation</p>
-      ${hev.length ? `<ul class="cb__mini">${hev.slice(-4).reverse().map((e) => `<li><button type="button" data-ev="${e.id}"><code>${e.code}</code> ${esc(e.summary)}</button></li>`).join('')}</ul>` : '<p class="dm__dim">No events from this machine yet. Advance the scenario.</p>'}
-      ${hal.length ? `<p class="cb__alertline">${hal.length} alert${hal.length > 1 ? 's' : ''}: ${hal.map((a) => esc(a.rule)).join(', ')}</p>` : ''}`;
+    events.forEach((e) => { if (beams.has(e.host)) pulseEls.push({ el: mk('circle', { class: 'cb__pulse', r: '3.4' }, gPulse) as SVGCircleElement, id: e.id, host: e.host }); });
   }
 
-  /* ---------------------------------------------------------- telemetry */
-  const rep = (stage: string, e: Ev) => {
-    const host = machineBy.get(e.host)!.name;
-    const vis = alerts.filter((a) => a.step <= S.step && a.triggers.includes(e.id));
-    switch (stage) {
-      case 'endpoint': return { Channel: e.channel, EventID: e.code, Computer: host, ...e.fields };
-      case 'forward': return { agent: 'winlogbeat', 'host.name': host, 'winlog.channel': e.channel, 'winlog.event_id': e.code, shipped_at: 'T+' + e.t };
-      case 'collect': return { '@timestamp': 'T+' + e.t, 'event.code': e.code, 'host.name': host, 'user.name': e.user, 'winlog.event_data': e.fields };
-      case 'index': return { _index: 'winlogbeat-fixture', _id: e.id, searchable_by: ['host.name', 'user.name', 'event.code'] };
-      case 'detect': return { rules_evaluated: rules.length - 1, matched: e.rules.length ? e.rules : 'none' };
-      default: return { contributes_to: vis.length ? vis.map((a) => `${a.id} (${a.rule})`) : 'no alert' };
+  const phaseAt = (u: number) => { let i = 0; while (i < starts.length - 1 && u >= starts[i + 1]) i++; return i; };
+  let lastStream: string | null = null, lastAlerts: string | null = null, lastAux: string | null = null, lastPhase = -1;
+  const evLine = (e: (typeof events)[number], hl: boolean, isNew: boolean) => `<li class="${e.benign ? 'is-benign' : ''} ${e.rule ? 'is-hit' : ''} ${hl ? 'is-hl' : ''} ${isNew ? 'is-new' : ''}"><button type="button" data-ev="${e.id}"><time>${ts(evAbs.get(e.id)!)}</time><b>${esc(mBy.get(e.host)!.name)}</b><code>${e.channel === 'Sysmon' ? 'Sysmon ' : ''}${e.code}</code><span>${esc(e.summary)}</span>${e.rule ? `<i class="cb__chip">${e.rule}</i>` : e.inferred ? '<i class="cb__chip cb__chip--dim">inferred</i>' : e.benign ? '<i class="cb__chip cb__chip--dim">normal</i>' : ''}</button></li>`;
+
+  function render(u: number, fade: number) {
+    stage.style.setProperty('--fade', String(fade));
+    $('[data-loop]').style.transform = `scaleX(${(u / CYCLE).toFixed(4)})`;
+    const ph = phaseAt(u), phase = phases[ph], inPhase = u - starts[ph];
+    root.querySelectorAll<HTMLElement>('[data-ph]').forEach((el, i) => { el.classList.toggle('is-on', i === ph); el.classList.toggle('is-past', i < ph); });
+    // scene: plates rise in, tiles light up
+    const rise = (delay: number) => ease((u - delay) / 900);
+    ([['siem', 500], ['lab', 150], ['atk', 850]] as const).forEach(([id, d]) => { const k = rise(d), g = plates.get(id)!; g.style.opacity = String(k); g.style.transform = `translateY(${(1 - k) * 26}px)`; });
+    const vis = events.filter((e) => evAbs.get(e.id)! <= u), counts = new Map<string, number>(); vis.forEach((e) => counts.set(e.host, (counts.get(e.host) ?? 0) + 1));
+    const focus = new Set(phase.focus);
+    const hoverHost = hover ? (hover.kind === 'host' ? hover.id : evBy.get(hover.id)?.host) : null;
+    tiles.forEach((t, id) => {
+      const idx = machines.findIndex((m) => m.id === id), k = ease((u - 900 - idx * 150) / 600);
+      t.g.style.opacity = String(k); t.g.style.transform = `translate(${t.x}px, ${t.y + (1 - k) * 10}px)`;
+      t.g.classList.toggle('is-focus', focus.has(id)); t.g.classList.toggle('is-hover', hoverHost === id);
+      const n = counts.get(id) ?? 0; const tx = n ? `${n}` : ''; if (t.badge.textContent !== tx) t.badge.textContent = tx;
+    });
+    // telemetry pulses beam from the emitting host to SIEM01
+    const arrive = (id: string) => evAbs.get(id)! + PULSE;
+    const beamHot = new Set<string>();
+    pulseEls.forEach((p) => { const t = (u - evAbs.get(p.id)!) / PULSE; const b = beams.get(p.host)!; if (t >= 0 && t <= 1) { const [x, y] = bez(b.pts, ease(t)); p.el.setAttribute('cx', String(x)); p.el.setAttribute('cy', String(y)); p.el.style.opacity = '1'; beamHot.add(p.host); } else p.el.style.opacity = '0'; });
+    beams.forEach((b, id) => { b.el.classList.toggle('is-hot', beamHot.has(id)); b.el.style.strokeDashoffset = String(-(u / 40) % 24); });
+    // attack paths draw progressively inside their phase, then stay dim
+    arcs.forEach((a) => {
+      const t0 = abs(a.a.phase, a.a.at), k = ease((u - t0) / a.a.dur), active = u >= t0 && u < starts[a.a.phase] + phases[a.a.phase].dur;
+      a.el.style.strokeDashoffset = String(1 - k); a.el.style.opacity = u < t0 ? '0' : active ? '1' : '0.3';
+      const [x, y] = bez(a.pts, k); a.head.setAttribute('cx', String(x)); a.head.setAttribute('cy', String(y)); a.head.style.opacity = u >= t0 && k < 1 ? '1' : '0';
+      a.deny.setAttribute('x', String(a.pts[3][0])); a.deny.setAttribute('y', String(a.pts[3][1] + 16)); a.deny.style.opacity = a.a.denied && k >= 1 && u >= t0 ? '1' : '0';
+    });
+    // pipeline strip: latest arrival walks Sysmon → Winlogbeat → Elastic → Sigma → Alert
+    let step = -1; const arrivals = vis.map((e) => arrive(e.id)).concat(alerts.filter((a) => abs(a.phase, a.at) <= u).map((a) => abs(a.phase, a.at))).filter((a) => u >= a).sort((a, b) => b - a);
+    if (arrivals.length && u - arrivals[0] < 1500) step = Math.min(4, Math.floor((u - arrivals[0]) / 280));
+    root.querySelectorAll<HTMLElement>('[data-pipe] li').forEach((li, i) => { li.classList.toggle('is-on', i === step); li.classList.toggle('is-past', step >= 0 && i < step); });
+    // phase card
+    if (lastPhase !== ph) { lastPhase = ph; $('[data-phase]').innerHTML = ph === 7 ? `<p class="cb__k">Loop</p><h4>Returning to the initial state</h4><p>The scenario restarts with the same fixtures.</p>` : `<p class="cb__k">Phase ${ph + 1} of 7 · <span>${esc(phase.technique)}</span></p><h4>${esc(phase.name)}</h4><p>${esc(phase.text)}</p>`; }
+    // stream
+    const lastSix = vis.slice(-7).reverse(), sig = 'v' + lastSix.map((e) => e.id).join() + (hover?.kind === 'ev' ? hover.id : '');
+    if (sig !== lastStream) { lastStream = sig; $('[data-stream]').innerHTML = !lastSix.length ? '<li class="cb__none">Waiting for the first event</li>' : lastSix.map((e, i) => evLine(e, hover?.kind === 'ev' && hover.id === e.id, i === 0)).join(''); }
+    const top = $('[data-stream]').firstElementChild; if (top && lastSix.length) top.classList.toggle('is-new', u - evAbs.get(lastSix[0].id)! < 900);
+    // alerts
+    const al = alerts.filter((a) => abs(a.phase, a.at) <= u), asig = 'v' + al.map((a) => a.id).join() + (hover?.kind === 'ev' ? hover.id : '');
+    if (asig !== lastAlerts) { lastAlerts = asig; $('[data-alerts]').innerHTML = al.slice().reverse().map((a) => { const r = ruleBy.get(a.rule)!; return `<li class="lv-${r.level}"><p><i class="cb__lvl">${r.level}</i> <b>${esc(r.title)}</b></p><p class="cb__as">${esc(a.summary)}</p><p class="cb__ev">${a.evidence.map((id) => `<button type="button" data-ev="${id}" class="${hover?.id === id ? 'is-hl' : ''}">${id}</button>`).join('')}</p></li>`; }).join('') || '<li class="cb__none">No alerts yet</li>'; }
+    $('[data-acount]').textContent = String(al.length);
+    $('[data-k="events"]').textContent = `${vis.length} event${vis.length === 1 ? '' : 's'}`; $('[data-k="alerts"]').textContent = `${al.length} alert${al.length === 1 ? '' : 's'}`;
+    // aux: design facts, then hunt + timeline, then rules + incident summary
+    let aux = '';
+    if (ph < 5) aux = `<p class="cb__h">The design <span>${lab.domain}</span></p><dl class="cb__facts"><div><dt>Network</dt><dd>${lab.network}, ${lab.subnet}</dd></div><div><dt>Isolation</dt><dd>${lab.isolation}</dd></div><div><dt>Telemetry</dt><dd>${pipeline.join(' → ')}</dd></div><div><dt>Built so far</dt><dd>Only a domain controller and a Windows 10 client exist in the public repo, with different addressing. The rest is planned.</dd></div></dl>`;
+    else if (ph === 5) {
+      aux = `<p class="cb__h">Hunt in Kibana <span>starting from alice</span></p>` + hunts.map((h) => { const t0 = starts[5] + h.at, typed = Math.round(clamp((u - t0) / 1500) * h.query.length), done = u >= t0 + 1700; return u < t0 ? '' : `<div class="cb__q"><code>${esc(h.query.slice(0, typed))}${typed < h.query.length ? '<i class="cb__caret"></i>' : ''}</code>${done ? `<p class="cb__qr"><b>${h.ids.length} events</b> ${esc(h.found)} <span>${h.ids.map((id) => `<button type="button" data-ev="${id}">${id}</button>`).join('')}</span></p>` : ''}</div>`; }).join('')
+        + `<ol class="cb__tl">${timeline.filter((t) => u >= starts[5] + t.at).map((t) => `<li><b>${esc(t.label)}</b> ${esc(t.text)}</li>`).join('')}</ol>`;
+    } else if (ph >= 6) {
+      const t = inPhase;
+      aux = `<p class="cb__h">Sigma rulebook <span>${fired.size} of ${rules.length} fired in this scenario</span></p><ol class="cb__rules">${rules.map((r, i) => t < i * 380 ? '' : `<li class="${fired.has(r.id) ? 'is-fired' : ''}"><i class="cb__lvl lv-${r.level}">${r.level}</i><b>${esc(r.title)}</b><code>${esc(r.logic)}</code><span>${fired.has(r.id) ? 'fired' : 'not triggered here'}</span></li>`).join('')}</ol>`
+        + (t > 3600 ? `<p class="cb__sum"><b>Incident summary</b> alice’s foothold on WS01 led to Kerberoasting against DC01, PsExec to SRV01 and a certificate request against the honeypot on CA01, which was denied and logged. One account, one chain, reconstructed from three log sources.</p>` : '');
     }
-  };
-  const countAt = (id: string) => { const v = visible(); return id === 'detect' ? v.filter((e) => e.rules.length).length : id === 'correlate' ? alerts.filter((a) => a.step <= S.step).length : v.length; };
-
-  function drawPipe() {
-    $('[data-pipe]').innerHTML = stages.map((s, i) => `<li><button type="button" class="cb__stage ${S.stage === s.id ? 'is-sel' : ''}" style="--i:${i}" data-stage="${s.id}" aria-pressed="${S.stage === s.id}"><span class="cb__sn">${s.n}</span><span class="cb__sname">${esc(s.name)}</span><span class="cb__scount">${countAt(s.id)}</span></button></li>`).join('');
-    const st = stages.find((s) => s.id === S.stage)!, e = S.ev ? evBy.get(S.ev) : null, ok = e && e.step <= S.step;
-    $('[data-stage-detail]').innerHTML = `<p class="dm__h">${st.n}. ${esc(st.name)} <span class="cb__st cb__st--planned">Planned</span></p>
-      <p class="cb__role">${esc(st.where)}</p><p>${esc(st.processes)}</p>
-      <dl class="cb__kv"><div><dt>In</dt><dd>${esc(st.input)}</dd></div><div><dt>Out</dt><dd>${esc(st.output)}</dd></div></dl>
-      <p class="dm__h dm__h--s">${ok ? `${esc(e!.id)} at this stage` : 'Selected event'}</p>
-      ${ok ? `<pre class="cb__json">${esc(JSON.stringify(rep(st.id, e!), null, 2))}</pre><p class="dm__dim">${esc(e!.summary)}</p>` : '<p class="dm__dim">Select an event in the stream to see what this stage holds for it.</p>'}`;
+    if (aux !== lastAux) { lastAux = aux; $('[data-aux]').innerHTML = aux; }
+    // inspector
+    let det = '';
+    if (hover?.kind === 'host') { const m = mBy.get(hover.id)!; det = `<p class="cb__k">${esc(m.name)} · ${esc(buildLabel[m.build])}</p><p>${esc(m.role)}</p><dl class="cb__facts"><div><dt>OS</dt><dd>${esc(m.os)}</dd></div><div><dt>Address</dt><dd>${esc(m.ip)} · ${m.ram} · ${m.cpu}</dd></div>${m.note ? `<div><dt>Note</dt><dd>${esc(m.note)}</dd></div>` : ''}</dl>`; }
+    else { const e = hover?.kind === 'ev' ? evBy.get(hover.id) : vis[vis.length - 1]; det = e && evAbs.get(e.id)! <= u ? `<p class="cb__k">${e.id} · ${e.channel} ${e.code} · ${esc(mBy.get(e.host)!.name)}${e.inferred ? ' · inferred, not enumerated in the design' : ''}</p><p>${esc(e.summary)}</p><dl class="cb__facts">${Object.entries(e.fields).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '<p class="cb__k">Waiting for the first event</p>'; }
+    const dEl = $('[data-detail]'); if (dEl.dataset.h !== det) { dEl.dataset.h = det; dEl.innerHTML = det; }
   }
 
-  function drawStream() {
-    const h = hunts.find((x) => x.id === S.hunt);
-    const f = S.filter.trim().toLowerCase();
-    let list = visible().slice().reverse();
-    if (h) list = list.filter((e) => h.ids.includes(e.id));
-    if (f) list = list.filter((e) => (JSON.stringify(e) + machineBy.get(e.host)!.name).toLowerCase().includes(f));
-    $('[data-stream-count]').textContent = `${list.length} of ${visible().length}`;
-    $('[data-hunts]').innerHTML = steps.length && S.step >= 6
-      ? hunts.map((x) => `<button type="button" data-hunt="${x.id}" aria-pressed="${S.hunt === x.id}">${esc(x.label)}</button>`).join('') + (h ? `<code class="cb__query">${esc(h.query)}</code>` : '')
-      : '<span class="dm__dim">Saved hunts unlock at step 6.</span>';
-    $('[data-stream]').innerHTML = list.length ? list.map((e) => `<li class="${e.benign ? 'is-benign' : ''} ${S.ev === e.id ? 'is-sel' : ''} ${e.rules.length ? 'is-hit' : ''}"><button type="button" data-ev="${e.id}"><time>${e.t}</time><b>${esc(machineBy.get(e.host)!.name)}</b><code>${e.code}</code><span>${esc(e.summary)}</span>${e.rules.map((r) => `<i class="cb__rule">${r}</i>`).join('')}${e.benign ? '<i class="cb__rule cb__rule--n">normal</i>' : ''}</button></li>`).join('') : `<li class="dm__dim cb__empty">${S.step === 0 ? 'Nothing ingested yet. Press Next step.' : 'No events match.'}</li>`;
-  }
-
-  /* ---------------------------------------------------------- scenario */
-  function drawScenario() {
-    const sc = $('[data-stepcard]');
-    if (S.step === 0) sc.innerHTML = `<p class="dm__h">Before the scenario</p><p>The lab is quiet. Seven stages follow the documented emulation: reconnaissance, credential access, lateral movement, an AD CS abuse attempt, a deception alert, threat hunting and a correlated investigation.</p><p><button type="button" class="dm__btn dm__btn--main" data-act="next">Start step 1</button></p>`;
-    else {
-      const s = steps[S.step - 1], evs = events.filter((e) => e.step === S.step), rs = [...new Set(evs.flatMap((e) => e.rules))].map((r) => ruleBy.get(r)!);
-      const showRules = S.step === 5 ? [ruleBy.get('R4')!] : S.step === 7 ? [ruleBy.get('R5')!] : rs;
-      sc.innerHTML = `<p class="dm__h">Step ${s.n} of ${NSTEPS} <span class="dm__dim">${esc(s.technique)}</span></p><h4 class="cb__h4">${esc(s.name)}</h4>
-        <p>${esc(s.what)}</p><p class="cb__sees"><b>What the SIEM sees</b> ${esc(s.sees)}</p>
-        ${evs.length ? `<ul class="cb__mini">${evs.map((e) => `<li><button type="button" data-ev="${e.id}"><time>${e.t}</time> <code>${e.code}</code> ${esc(machineBy.get(e.host)!.name)}: ${esc(e.summary)}</button></li>`).join('')}</ul>` : ''}
-        ${showRules.map((r) => `<div class="cb__rulebox"><p><b>${r.id}</b> ${esc(r.name)} <i class="cb__sev cb__sev--${r.severity}">${r.severity}</i></p><pre>${esc(r.logic.join('\n'))}</pre><p class="dm__dim">${esc(r.technique)} · illustrative Sigma-style logic</p></div>`).join('')}`;
-    }
-    const al = alerts.filter((a) => a.step <= S.step);
-    $('[data-alerts]').innerHTML = `<p class="dm__h">Alerts <span class="dm__dim">${al.length}</span></p>` + (al.length ? `<ul class="cb__alerts">${al.slice().reverse().map((a) => { const r = ruleBy.get(a.rule)!; return `<li class="sev-${r.severity}"><p><i class="cb__sev cb__sev--${r.severity}">${r.severity}</i> <b>${a.rule}</b> ${esc(a.summary)}</p><p class="cb__alinks">${a.triggers.map((t) => `<button type="button" data-ev="${t}">${t}</button>`).join('')}</p></li>`; }).join('')}</ul>` : '<p class="dm__dim">None yet.</p>');
-    const tl = timeline.filter((t) => t.step <= S.step);
-    $('[data-cbtl]').innerHTML = `<p class="dm__h">Investigation timeline <span class="dm__dim">${tl.length ? '' : 'starts at step 6'}</span></p>` + (tl.length ? `<ol class="cb__tl">${tl.map((t) => `<li><time>${t.t}</time><p>${esc(t.text)}</p><p class="cb__alinks">${t.refs.map((r) => `<button type="button" data-ev="${r}">${r}</button>`).join('')}</p></li>`).join('')}</ol>` : '');
-    drawEvBox();
-  }
-  function drawEvBox() {
-    const e = S.ev ? evBy.get(S.ev) : null, box = $('[data-evbox]');
-    if (!e || e.step > S.step) { box.innerHTML = ''; return; }
-    const al = alerts.filter((a) => a.step <= S.step && a.triggers.includes(e.id));
-    box.innerHTML = `<p class="dm__h">Event ${e.id} <span class="dm__dim">${esc(e.channel)} ${e.code} on ${esc(machineBy.get(e.host)!.name)} at T+${e.t}</span></p><p>${esc(e.summary)}</p><pre class="cb__json">${esc(JSON.stringify(rep('collect', e), null, 2))}</pre><p class="dm__dim">${e.benign ? 'Normal activity: no rule matches.' : e.rules.length ? `Matches ${e.rules.join(', ')}.` : 'Context for the chain; no rule matches on its own.'}${al.length ? ` Part of ${al.map((a) => a.id).join(', ')}.` : ''}</p>`;
-  }
-
-  /* ---------------------------------------------------------- shell */
-  function drawChrome() {
-    const v = visible();
-    const set = (k: string, t: string) => { const el = $(`[data-k="${k}"]`); if (el.textContent !== t) el.textContent = t; };
-    set('step', `${S.step}/${NSTEPS}`); set('events', String(v.length)); set('alerts', String(alerts.filter((a) => a.step <= S.step).length));
-    set('hosts', String(new Set(v.filter((e) => !e.benign).map((e) => e.host)).size)); set('accts', String(new Set(v.filter((e) => !e.benign && e.user !== '-').map((e) => e.user)).size));
-    $$('[data-act="goto"]').forEach((b) => { const n = +b.dataset.n!; b.classList.toggle('is-done', n <= S.step); b.classList.toggle('is-cur', n === S.step); if (n === S.step) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); });
-    ($('[data-act="prev"]') as HTMLButtonElement).disabled = S.step === 0;
-    const nx = $<HTMLButtonElement>('[data-act="next"]'); nx.disabled = S.step === NSTEPS; nx.textContent = S.step === 0 ? 'Start' : S.step === NSTEPS ? 'End of scenario' : 'Next step';
-    const pl = $('[data-act="play"]'); pl.setAttribute('aria-pressed', String(S.playing)); pl.textContent = S.playing ? 'Pause' : 'Auto-play';
-    $$('[data-tab]').forEach((t) => { const on = t.dataset.tab === S.tab; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
-    $$('[data-p]').forEach((p) => { p.hidden = p.dataset.p !== S.tab; });
-    $$('[data-layer]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.layer === S.layer)));
-  }
-  const fk = () => (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[data-ev],[data-stage],[data-hunt],[data-act],[data-layer],[data-tab]');
-  function draw(parts: ('arch' | 'pipe' | 'stream' | 'scen' | 'all')[] = ['all']) {
-    const a = fk(); const key = a ? Array.from(a.attributes).filter((x) => x.name.startsWith('data-')).map((x) => `[${x.name}="${x.value}"]`).join('') : '';
-    const all = parts.includes('all');
-    drawChrome();
-    if (S.tab === 'arch' || all) drawArch();
-    if (S.tab === 'telemetry' || all) { drawPipe(); drawStream(); }
-    if (S.tab === 'scenario' || all) drawScenario();
-    if (key && !root.contains(document.activeElement)) { try { root.querySelector<HTMLElement>(key)?.focus({ preventScroll: true }); } catch { /* ignore */ } }
-  }
-  function flow() {
-    const pipe = $('[data-pipe]'); pipe.classList.remove('is-flow'); void (pipe as HTMLElement).offsetWidth;
-    if (!opts.reduced) { pipe.classList.add('is-flow'); clearTimeout(flowTimer); flowTimer = window.setTimeout(() => pipe.classList.remove('is-flow'), 2200); }
-  }
-  function setStep(n: number) {
-    const was = S.step; S.step = Math.max(0, Math.min(NSTEPS, n));
-    if (S.ev && evBy.get(S.ev)!.step > S.step) S.ev = null;
-    if (S.hunt && S.step < 6) S.hunt = null;
-    if (S.step > was) { const newest = events.filter((e) => e.step === S.step).filter((e) => !e.benign).pop(); if (newest) { S.host = newest.host; } flow(); }
-    if (S.step === 0) { S.ev = null; S.hunt = null; S.filter = ''; const f = $<HTMLInputElement>('[data-filter]'); f.value = ''; }
-    draw();
-  }
-  const stop = () => { S.playing = false; clearInterval(timer); };
-
-  root.addEventListener('click', (e) => {
-    const t = e.target as Element;
-    const ev = t.closest<HTMLElement>('[data-ev]'); if (ev) { S.ev = ev.dataset.ev!; S.host = evBy.get(S.ev)!.host; draw(); return; }
-    const st = t.closest<HTMLElement>('[data-stage]'); if (st) { S.stage = st.dataset.stage!; draw(); return; }
-    const hu = t.closest<HTMLElement>('[data-hunt]'); if (hu) { S.hunt = S.hunt === hu.dataset.hunt ? null : hu.dataset.hunt!; draw(); return; }
-    const ly = t.closest<HTMLElement>('[data-layer]'); if (ly) { S.layer = ly.dataset.layer as typeof S.layer; draw(); return; }
-    const tb = t.closest<HTMLElement>('[data-tab]'); if (tb) { S.tab = tb.dataset.tab as Tab; draw(); return; }
-    const act = t.closest<HTMLElement>('[data-act]'); if (!act) return;
-    switch (act.dataset.act) {
-      case 'next': stop(); setStep(S.step + 1); break;
-      case 'prev': stop(); setStep(S.step - 1); break;
-      case 'reset': stop(); S.host = 'dc01'; S.stage = 'collect'; setStep(0); break;
-      case 'goto': stop(); setStep(+act.dataset.n!); break;
-      case 'play':
-        if (S.playing) { stop(); draw(); break; }
-        if (S.step >= NSTEPS) setStep(0);
-        S.playing = true; draw();
-        timer = window.setInterval(() => { if (S.step >= NSTEPS) { stop(); draw(); return; } setStep(S.step + 1); }, 4200); break;
-    }
-  });
-  root.addEventListener('keydown', (e) => {
-    const k = (e as KeyboardEvent).key, tb = (e.target as Element).closest<HTMLElement>('[data-tab]');
-    if (!tb || (k !== 'ArrowRight' && k !== 'ArrowLeft' && k !== 'Home' && k !== 'End')) return;
-    const order: Tab[] = ['arch', 'telemetry', 'scenario'], i = order.indexOf(S.tab);
-    S.tab = k === 'Home' ? order[0] : k === 'End' ? order[2] : order[(i + (k === 'ArrowRight' ? 1 : 2)) % 3]; draw(); root.querySelector<HTMLElement>(`[data-tab="${S.tab}"]`)!.focus(); e.preventDefault();
-  });
-  $<HTMLInputElement>('[data-filter]').addEventListener('input', (e) => { S.filter = (e.target as HTMLInputElement).value; drawStream(); });
-  draw();
-  (root as unknown as { __cb: unknown }).__cb = { get state() { return { ...S }; } };
+  build();
+  const loop = createLoop(root, { cycle: CYCLE, fadeIn: FADE_IN, fadeOut: FADE_OUT, reduced: opts.reduced, staticU: starts[6] + 6200, render });
+  const setHover = (h: typeof hover) => { if (JSON.stringify(h) === JSON.stringify(hover)) return; hover = h; lastStream = lastAlerts = null; loop.redraw(); };
+  const target = (t: EventTarget | null): typeof hover => { const el = (t as Element | null)?.closest?.('[data-ev],[data-host]') as HTMLElement | null; return el ? (el.dataset.ev ? { kind: 'ev', id: el.dataset.ev } : { kind: 'host', id: el.dataset.host! }) : null; };
+  root.addEventListener('pointerover', (e) => { const t = target(e.target); if (t) setHover(t); });
+  root.addEventListener('pointerout', (e) => { if (target(e.target) && !target(e.relatedTarget)) setHover(null); });
+  root.addEventListener('focusin', (e) => { const t = target(e.target); if (t) setHover(t); });
+  root.addEventListener('focusout', () => setHover(null));
+  new ResizeObserver(() => { const m = root.clientWidth < 760 ? 'tall' : 'wide'; if (m !== mode) { mode = m; build(); lastStream = lastAlerts = lastAux = null; lastPhase = -1; loop.redraw(); } }).observe(root);
+  (root as unknown as { __cb: unknown }).__cb = { seek: (ms: number) => loop.seek(ms), get pos() { return loop.pos; }, get running() { return loop.running; }, cycle: CYCLE, starts, get machines() { return machines as Machine[]; } };
 }

@@ -27,17 +27,25 @@ Build and strict build pass; `tsc` clean. No console errors, no horizontal overf
 
 
 ---
-## Update: interactive demonstrations and Bobcares role
+## Current state (cinematic revision)
 
-**New files**
-- `src/data/demos.ts` – fictional deterministic sites for the CrawlX and CLI demos (everything is labelled as sample data).
-- `src/data/cerberus.ts` – Cerberus fixtures plus a provenance note. The architecture PDF was not available when this was written; machine roles come from the owner's brief and build status from the public repo.
-- `src/scripts/crawlx-demo.ts`, `cli-demo.ts`, `cerberus-sim.ts` – the three simulations (no network access, no user-supplied URLs).
-- `docs/CERBERUS-LIVE.md` – what a genuine live connection would need.
-- `tools/qa.py` – browser tests against the production preview (replaces `tools/behaviour.py`).
+**Opening** – `Hero.astro`, `src/scripts/hero-scene.ts`. One pinned sequence (about 1.75 viewports on desktop, 1.15 on phones): the word "Welcome" over a canvas lattice that is flown through on scroll, resolves into the CrawlX crawl tree (same layout code as the demo: `crawl-sim.ts → layoutFor`) and is revealed through a growing paper mask. An ink copy of the text lives inside the mask so it recolours as the paper passes. Reduced motion: no pin, one static frame. This is the only pin on the page. **Create the hero's ScrollTrigger first** (see the boot order in `motion.ts`), otherwise triggers below it measure stale positions.
 
-**Verified facts used**: CrawlX constants (10 workers, buffer 100, 3 attempts, 1 s retry delay, 100 ms request delay) from `crawler.go`; CLI options and BFS/robots logic from `cli.py` and `crawler/core.py`. Note: `usage.md` in the CLI repo documents a `--color` option that `cli.py` does not implement, so it is not shown. The lab repo lists Kali as 192.168.10.100 in one README and .30 in another, so no Kali address is displayed.
+**Self-running demonstrations** – no visitor controls. Each is one rAF loop (`src/scripts/loop.ts`) whose `render(u, fade)` is a pure function of the loop position, so nothing drifts. They start when near the viewport, pause off-screen and in hidden tabs, dissolve at the cycle end and restart clean. Reduced motion renders one finished frame. Hover or focus inspects.
+- `crawlx-demo.ts` + `crawl-sim.ts`: replays the dispatcher/worker logic of `internal/crawl/crawler.go` (10 workers, buffer 100, 3 attempts, 1 s·(n+1) back-off, 100 ms delay, visited-map dedupe, same-domain filter, depth countdown) on a fictional site (`data/demos.ts`). Layout is computed from the discovery tree (wide on desktop, tall on phones), never fixed per device.
+- `cli-demo.ts`: follows `crawler/core.py` (FIFO list, global `visited`, robots.txt before visiting, fail-open, `--search`, link filters). With `--output` the real tool prints nothing at the end, so the terminal shows no summary; the file appears in the results sheet.
+- `cerberus-sim.ts` + `data/cerberus.ts`: eight phases (~49 s) over an isometric three-plane scene. Event stream, alerts, hunt queries, timeline and rulebook are all derived from one position. State is plain typed arrays so a read-only API could replace them (`docs/CERBERUS-LIVE.md`).
 
-**Review flags** (strict build `npm run build:production` fails until each is resolved): job title and start date for the Bobcares role, graduation status, and the unconfirmed Cerberus details in `cerberus.ts`.
+**Cerberus provenance** – Architecture, addressing (192.168.56.0/24, cerberus.local), accounts, template name, KQL hunts and the six Sigma rules come from `Combine-1,2.pdf`. The PDF is a **design**; the public repo `ad-attack-defense-lab` builds only a DC01 (192.168.10.10, corp.local) and WIN10-1, so those two are labelled "built in the lab repo / mapping unconfirmed" and everything else "planned". Events, timings and alerts are illustrative fixtures; recon events are marked *inferred* because the PDF gives no event IDs for that stage. Credentials, PowerShell and attack commands from the PDF are intentionally **not** reproduced.
 
-**Résumé**: `public/resume.pdf` is the original, unmodified. It still says Bhubaneswar and predates the Bobcares role; the page says so next to the download. `public/_headers` pins its content type for Netlify.
+**Pwndbg** – `initCymbol` in `motion.ts`: a scrubbed (unpinned) timeline: old usage line, each old option, paths drawing, old options struck, subcommands settling, new usage line, then the patch screenshot. Everything is readable without it.
+
+**Toolkit** – content in `site.ts → toolkit`. Names are in the HTML (readable without JS); a trace and a wave pass through the groups; focus shows what each tool is based on (work / project / self-assessed / early). Self-assessed items carry `review` flags.
+
+**Contact** – split composition; `contact-visual.ts` canvas loops on its own and brightens an arc when its link is hovered or focused.
+
+**Review flags (strict build blocks until resolved)**: Bobcares job title/start date, graduation status, DC01 and WS01 mapping to the lab repo, and every self-assessed toolkit item (Networking, Server monitoring and log analysis, Bash, Burp Suite, Nmap, Web vulnerability research, Vulnerability-report writing, Cloud fundamentals). Run `npm run build:production` to list them.
+
+**Résumé** – `public/resume.pdf` is the original, unmodified; it still says Bhubaneswar and predates the Bobcares role, and the page says so. `public/_headers` pins its content type on Netlify.
+
+**Tests** – `python3 tools/qa.py [dir]` after `npm run build`: browser checks (about 70) including deterministic seeks into each loop. Not tested: real devices, Safari, Firefox, screen readers, performance profiling.
