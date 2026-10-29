@@ -9,6 +9,8 @@ const year = new Date().getFullYear();
       <header class="contact__text" data-reveal-group>
         <h2 class="h2" id="contact-h" data-reveal-item>{closing.heading}</h2>
         <p class="lede lede--d" data-reveal-item>{closing.lead}</p>
+        <p class="contact__place" data-reveal-item><span aria-hidden="true"></span>{person.location}</p>
+        <p class="contact__cta" data-reveal-item><a class="btn btn--light" href={profiles.email.url}>Write an email</a></p>
       </header>
       <div class="channels" data-channels>
         <span class="channels__rail" aria-hidden="true"><i class="channels__fill"></i></span>

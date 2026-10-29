@@ -24,3 +24,20 @@ Build and strict build pass; `tsc` clean. No console errors, no horizontal overf
 - Withheld content is listed at the bottom of `site.ts`.
 - Tools such as Burp Suite, Nmap, Wireshark, Metasploit, Nessus/OpenVAS, Gobuster and Linux come from the résumé only; no public project demonstrates them.
 - Legacy repos and the live site were only read, never modified.
+
+
+---
+## Update: interactive demonstrations and Bobcares role
+
+**New files**
+- `src/data/demos.ts` – fictional deterministic sites for the CrawlX and CLI demos (everything is labelled as sample data).
+- `src/data/cerberus.ts` – Cerberus fixtures plus a provenance note. The architecture PDF was not available when this was written; machine roles come from the owner's brief and build status from the public repo.
+- `src/scripts/crawlx-demo.ts`, `cli-demo.ts`, `cerberus-sim.ts` – the three simulations (no network access, no user-supplied URLs).
+- `docs/CERBERUS-LIVE.md` – what a genuine live connection would need.
+- `tools/qa.py` – browser tests against the production preview (replaces `tools/behaviour.py`).
+
+**Verified facts used**: CrawlX constants (10 workers, buffer 100, 3 attempts, 1 s retry delay, 100 ms request delay) from `crawler.go`; CLI options and BFS/robots logic from `cli.py` and `crawler/core.py`. Note: `usage.md` in the CLI repo documents a `--color` option that `cli.py` does not implement, so it is not shown. The lab repo lists Kali as 192.168.10.100 in one README and .30 in another, so no Kali address is displayed.
+
+**Review flags** (strict build `npm run build:production` fails until each is resolved): job title and start date for the Bobcares role, graduation status, and the unconfirmed Cerberus details in `cerberus.ts`.
+
+**Résumé**: `public/resume.pdf` is the original, unmodified. It still says Bhubaneswar and predates the Bobcares role; the page says so next to the download. `public/_headers` pins its content type for Netlify.

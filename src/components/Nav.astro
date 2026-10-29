@@ -2,9 +2,10 @@
 import { person } from '../data/site';
 ---
 <header class="nav" data-tone="dark">
-  <a class="nav__home" href="#top" aria-label={`${person.name}, back to the top`}>{person.name}</a>
+  <a class="nav__home" href="#top" aria-label={`Home, ${person.name}`}>Home</a>
   <nav aria-label="Primary">
     <ul>
+      <li class="nav__homeli"><a href="#top">Home</a></li>
       <li><a href="#work">Work</a></li>
       <li><a href="#toolkit">Toolkit</a></li>
       <li><a href="#writing">Writing</a></li>

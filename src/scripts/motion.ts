@@ -1,6 +1,6 @@
 /**
  * Progressive enhancement. The page is complete without this file: no-JS and reduced-motion visitors get the finished
- * compositions. There are NO pinned sequences. The opening is a sticky "curtain": the hero stays put while the first
+ * compositions. There are no pinned sequences (the brief allows two; none was needed). The opening is a sticky "curtain": the hero stays put while the first
  * light scene rises over it, so every pixel of scroll moves real content (no spacer, no dead viewport).
  *
  * Motion system (shared by everything below)
@@ -12,6 +12,9 @@
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
+import { initCrawlxDemo } from './crawlx-demo';
+import { initCliDemo } from './cli-demo';
+import { initCerberus } from './cerberus-sim';
 
 gsap.registerPlugin(ScrollTrigger);
 ScrollTrigger.config({ ignoreMobileResize: true });
@@ -71,14 +74,15 @@ addEventListener('popstate', (e) => {
 /* ---------------------------------------------------------------- navigation: tone per scene, hide on scroll down, current section */
 const nav = q('.nav')!;
 const setTone = (t: string) => { if (nav.dataset.tone !== t) nav.dataset.tone = t; };
-const setCurrent = (id: string) => qa<HTMLAnchorElement>('.nav ul a').forEach((a) => a.toggleAttribute('aria-current', a.getAttribute('href') === id) );
+const setCurrent = (id: string) => qa<HTMLAnchorElement>('.nav ul a').forEach((a) => { if (a.getAttribute('href') === id) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
 function initNav() {
   qa('[data-scene]').forEach((sec) => {
     ScrollTrigger.create({ trigger: sec, start: 'top 40px', end: 'bottom 40px', onToggle: (s) => { if (s.isActive) setTone(sec.dataset.scene === 'paper' ? 'paper' : 'dark'); } });
   });
+  setCurrent('#top');
   const map: [string, string][] = [['.work', '#work'], ['#lab', '#work'], ['#pwndbg', '#work'], ['#toolkit', '#toolkit'], ['#writing', '#writing'], ['#resume', '#resume'], ['#contact', '#contact']];
   map.forEach(([sel, id]) => { const el = q(sel); if (el) ScrollTrigger.create({ trigger: el, start: 'top 50%', end: 'bottom 50%', onToggle: (s) => { if (s.isActive) setCurrent(id); } }); });
-  ScrollTrigger.create({ trigger: '.hero', start: 'top top', end: 'top -50%', onLeaveBack: () => setCurrent('') });
+  ScrollTrigger.create({ trigger: '.hero', start: 'top top', end: 'top -50%', onEnter: () => setCurrent('#top'), onLeaveBack: () => setCurrent('#top') });
   ScrollTrigger.create({
     start: 0, end: 'max', onUpdate: (self) => {
       const y = self.scroll();
@@ -162,51 +166,36 @@ function initReveals() {
   });
 }
 
-/* ---------------------------------------------------------------- CrawlX: worker-pool illustration (runs only while visible) */
-function initPool() {
-  const pool = q('.pool'); if (!pool) return;
-  const workers = qa('.pool__w', pool), outs = qa('.pool__out i', pool), queue = qa('.pool__queue span', pool);
-  let timer = 0, n = 0;
-  const step = () => {
-    const w = workers[(n * 3) % workers.length];
-    w.classList.add('is-busy'); setTimeout(() => w.classList.remove('is-busy'), 900);
-    gsap.fromTo(queue[n % queue.length], { opacity: 0.2, x: 0 }, { opacity: 1, x: 8, duration: 0.5, yoyo: true, repeat: 1, ease: 'power2.inOut' });
-    if (n % 3 === 2) { const k = Math.floor(n / 3) % (outs.length + 1); outs.forEach((o, i) => o.classList.toggle('is-on', i < k)); }
-    n++;
-  };
-  ScrollTrigger.create({ trigger: pool, start: 'top 95%', end: 'bottom 5%', onToggle: (s) => { clearInterval(timer); if (s.isActive) timer = window.setInterval(step, 520); } });
+/* ---------------------------------------------------------------- demonstrations (simulations; see each module) */
+function initDemos() {
+  const cx = q('[data-cx]'), cl = q('[data-cli]'), cb = q('[data-cerb]');
+  if (cx) initCrawlxDemo(cx, { reduced });
+  if (cl) initCliDemo(cl, { reduced });
+  if (cb) initCerberus(cb, { reduced });
 }
 
-/* ---------------------------------------------------------------- Active Directory lab */
-function initLab() {
-  const fig = q('.labmap'); if (!fig) return;
-  const nodes = qa('.node', fig), bus = q('.labmap__nodes', fig)!, pulse = q('.labmap__pulse', fig)!;
-  gsap.set(nodes, { opacity: 0, y: 26 });
-  bus.style.setProperty('--bus', '0');
-  const point = (i: number) => {
-    const s = q('.node__stub', nodes[i])!.getBoundingClientRect(), f = fig.getBoundingClientRect();
-    return { x: s.left - f.left - fig.clientLeft + 1, y: s.top - f.top - fig.clientTop + 1 };
-  };
-  let loop: gsap.core.Tween | null = null;
-  const startPulse = () => {
-    loop?.kill();
-    const a = point(0), b = point(1);
-    gsap.set(pulse, { x: a.x, y: a.y, opacity: 0 });
-    loop = gsap.timeline({ repeat: -1, repeatDelay: 1.2 })
-      .to(pulse, { opacity: 1, duration: 0.25 })
-      .to(pulse, { x: b.x, y: b.y, duration: 1.1, ease: 'power2.inOut' }, '<')
-      .to(pulse, { opacity: 0, duration: 0.3 }, '-=0.3') as unknown as gsap.core.Tween;
-  };
-  ScrollTrigger.create({
-    trigger: fig, start: 'top 80%', once: true,
-    onEnter: () => {
-      // README build order: DC01, WIN10-1, then the planned Kali machine.
-      gsap.to(bus, { '--bus': 1, duration: 0.9, ease: EASE });
-      gsap.to(nodes, { opacity: 1, y: 0, duration: 1, ease: EASE, stagger: 0.16, clearProps: 'transform', onComplete: () => { if (!reduced) startPulse(); } });
-    },
+/* ---------------------------------------------------------------- scroll-linked depth: demo frames scale up and settle as they arrive */
+function initZoom() {
+  if (reduced || lite) return;
+  qa('[data-zoom]').forEach((el) => {
+    gsap.fromTo(el, { scale: coarse ? 0.97 : 0.93, yPercent: 3, transformOrigin: '50% 0%' }, {
+      scale: 1, yPercent: 0, ease: 'none', immediateRender: true,
+      scrollTrigger: { trigger: el, start: 'top 98%', end: 'top 38%', scrub: true },
+    });
   });
-  ScrollTrigger.create({ trigger: fig, start: 'top 100%', end: 'bottom 0%', onToggle: (s) => { if (loop) (s.isActive ? loop.resume() : loop.pause()); } });
-  addEventListener('resize', () => { if (loop) startPulse(); });
+}
+
+/* ---------------------------------------------------------------- hero: a signal travels the index trace, row to row, through the real project list */
+function initSignal() {
+  const sig = q('.index__signal'), rows = qa('.index__row'); if (!sig || !rows.length || reduced) return;
+  const wrap = q('.index-wrap')!;
+  const ys = () => rows.map((r) => r.offsetTop + r.offsetHeight / 2 - rows[0].offsetHeight / 2);
+  const tl = gsap.timeline({ repeat: -1, repeatDelay: 1.6, delay: 2.2, paused: false });
+  const build = () => { tl.clear(); ys().forEach((y, i) => { tl.to(sig, { y, opacity: 1, duration: i ? 0.9 : 0.01, ease: 'power2.inOut' }); tl.add(() => rows.forEach((r, k) => r.classList.toggle('is-ping', k === i)), '>'); tl.to({}, { duration: 0.45 }); }); tl.to(sig, { opacity: 0, duration: 0.4 }).add(() => rows.forEach((r) => r.classList.remove('is-ping'))); };
+  gsap.set(sig, { opacity: 0, y: 0 });
+  build();
+  addEventListener('resize', () => { build(); tl.restart(); });
+  ScrollTrigger.create({ trigger: wrap, start: 'top bottom', end: 'bottom top', onToggle: (s) => (s.isActive ? tl.resume() : tl.pause()) });
 }
 
 /* ---------------------------------------------------------------- Pwndbg: old options resolve into subcommands (about a second, no pin) */
@@ -344,13 +333,13 @@ function initCopy() {
 }
 
 /* ---------------------------------------------------------------- boot */
-initKit(); initCopy();
+initKit(); initCopy(); initDemos();
 if (reduced) {
   root.classList.add('ready');
   initNav(); initContact();
   qa<HTMLElement>('.index__row').forEach((r) => r.classList.add('is-lit'));
 } else {
-  initNav(); initHero(); initReveals(); initPool(); initLab(); initCymbol(); initTimeline(); initContact();
+  initNav(); initHero(); initSignal(); initReveals(); initZoom(); initCymbol(); initTimeline(); initContact();
 }
 const refresh = () => ScrollTrigger.refresh();
 document.fonts?.ready.then(refresh);

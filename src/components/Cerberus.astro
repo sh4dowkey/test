@@ -1,0 +1,35 @@
+---
+import { adLab as lab } from '../data/site';
+import { cerberusMeta } from '../data/cerberus';
+const built = lab.status_table.filter((s) => s.state === 'built');
+const planned = lab.status_table.filter((s) => s.state === 'planned');
+---
+<section class="scene scene--ink lab" id={lab.id} data-scene="dark" aria-labelledby="lab-h">
+  <div class="wrap">
+    <header class="lab__head" data-reveal-group>
+      <p class="kicker kicker--d" data-reveal-item>03 &middot; Lab &middot; Active Directory purple team</p>
+      <div class="lab__title" data-reveal-item>
+        <h3 class="h3" id="lab-h">{lab.name}</h3>
+        <span class="status"><i aria-hidden="true"></i>{lab.status}</span>
+      </div>
+      <p class="lede lede--d" data-reveal-item>{lab.lede}</p>
+    </header>
+
+    <div class="lab__truth" data-reveal-group>
+      <dl class="lab__list" data-reveal-item>
+        <dt>Built, per the public repository</dt>
+        {built.map((s) => <dd><b>{s.name}</b> {s.note}</dd>)}
+      </dl>
+      <dl class="lab__list lab__list--planned" data-reveal-item>
+        <dt>Planned</dt>
+        {planned.map((s) => <dd><b>{s.name}</b> {s.note}</dd>)}
+        <dd><b>CA01, SRV01, SIEM01</b> Part of the Cerberus design only</dd>
+      </dl>
+      <p class="project__links" data-reveal-item><a class="btn btn--light" href={cerberusMeta.repoUrl} rel="noopener">View source on GitHub</a></p>
+    </div>
+
+    <div class="demo demo--cb" data-zoom data-cerb>
+      <noscript><p class="dm__note">The Cerberus simulation needs JavaScript. It replays fixture events; nothing here is live.</p></noscript>
+    </div>
+  </div>
+</section>

@@ -5,15 +5,16 @@ import { person, index, resume } from '../data/site';
   <div class="hero__glow" aria-hidden="true"><i class="g1"></i><i class="g2"></i></div>
   <div class="wrap hero__grid">
     <div class="hero__copy">
+      <p class="hero__eyebrow" data-intro>{person.eyebrow}</p>
       <h1 class="hero__title">
-        {person.heroLines.map((l, i) => (
-          <span class="hero__line" data-intro><span class="hero__line-in" data-i={i}>{l.text}</span></span>
+        {person.headline.map((l, i) => (
+          <span class="hero__line" data-intro><span class="hero__line-in" data-i={i}>{l}</span></span>
         ))}
       </h1>
       <p class="hero__intro" data-intro>{person.intro}</p>
       <p class="hero__actions" data-intro>
         <a class="btn btn--light" href="#work">See the work</a>
-        <a class="textlink" href={resume.pdf.href} download={resume.pdf.filename}>R&eacute;sum&eacute; (PDF)</a>
+        <a class="textlink" href={resume.pdf.href} download={resume.pdf.filename} type="application/pdf">R&eacute;sum&eacute; (PDF)</a>
       </p>
     </div>
     <nav class="hero__index" aria-label="Selected work" data-intro>
@@ -30,7 +31,7 @@ import { person, index, resume } from '../data/site';
           </li>
         ))}
       </ol>
-      <span class="index__trace" aria-hidden="true"><i class="index__trace-fill"></i></span>
+      <span class="index__trace" aria-hidden="true"><i class="index__trace-fill"></i><i class="index__signal"></i></span>
       </div>
     </nav>
   </div>

@@ -6,16 +6,21 @@ import { writing } from '../data/site';
     <header data-reveal-group>
       <h2 class="h2" id="writing-h" data-reveal-item>{writing.heading}</h2>
       <p class="sec-head__lede" data-reveal-item>{writing.lede}</p>
+      <p class="writing__count" data-reveal-item>{writing.articles.length} articles &middot; Medium</p>
     </header>
-    <ul class="posts" data-reveal-group>
-      {writing.articles.map((a) => (
+    <ol class="posts" data-reveal-group>
+      {writing.articles.map((a, i) => (
         <li data-reveal-item>
           <a class="post" href={a.url} rel="noopener">
-            <span class="post__title">{a.title}</span>
-            <span class="post__meta"><time>{a.date}</time> &middot; {a.topic} &middot; Medium</span>
+            <span class="post__n">{String(i + 1).padStart(2, '0')}</span>
+            <span class="post__body">
+              <span class="post__title">{a.title}</span>
+              <span class="post__meta"><span class="post__topic">{a.topic}</span><time>{a.date}</time></span>
+            </span>
+            <svg class="post__arrow" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </a>
         </li>
       ))}
-    </ul>
+    </ol>
   </div>
 </section>

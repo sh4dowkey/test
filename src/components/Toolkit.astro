@@ -1,6 +1,7 @@
 ---
 import { toolkit, index } from '../data/site';
-const name = (id: string) => index.find((p) => p.id === id)?.name ?? id;
+const targets = [...toolkit.evidenceTargets, ...index];
+const name = (id: string) => targets.find((p) => p.id === id)?.name ?? id;
 ---
 <section class="scene scene--ink kit" id="toolkit" data-scene="dark" aria-labelledby="kit-h">
   <div class="wrap">
@@ -17,9 +18,10 @@ const name = (id: string) => index.find((p) => p.id === id)?.name ?? id;
             <ul class="kit__items">
               {g.items.map((t) => (
                 <li>
-                  <button type="button" class="tool" data-projects={(t.projects ?? []).join(' ')} aria-pressed="false">
-                    {t.name}
-                    {t.projects && <span class="sr-only"> (used in {t.projects.map(name).join(', ')})</span>}
+                  <button type="button" class="tool" data-projects={t.evidence.join(' ')} aria-pressed="false">
+                    <span class="tool__name">{t.name}</span>
+                    <span class="tool__note">{t.note}</span>
+                    <span class="sr-only">Appears in {t.evidence.map(name).join(', ')}.</span>
                   </button>
                 </li>
               ))}
@@ -27,10 +29,10 @@ const name = (id: string) => index.find((p) => p.id === id)?.name ?? id;
           </section>
         ))}
       </div>
-      <nav class="kit__projects" aria-label="Projects that use these tools" data-reveal-group>
-        <p class="kit__label" data-reveal-item>Used in</p>
+      <nav class="kit__projects" aria-label="Where these tools appear" data-reveal-group>
+        <p class="kit__label" data-reveal-item>Where it appears</p>
         <ul>
-          {index.map((p) => (
+          {targets.map((p) => (
             <li data-reveal-item><a class="chip" href={p.href} data-id={p.id}><span class="chip__n">{p.n}</span>{p.name}</a></li>
           ))}
         </ul>

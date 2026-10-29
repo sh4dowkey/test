@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Hero from '../components/Hero.astro';
-import Lab from '../components/Lab.astro';
+import Cerberus from '../components/Cerberus.astro';
 import Pwndbg from '../components/Pwndbg.astro';
 import Toolkit from '../components/Toolkit.astro';
 import Writing from '../components/Writing.astro';
@@ -35,49 +35,49 @@ import { person, work, crawlx, cliCrawler } from '../data/site';
               <p class="project__links" data-reveal-item><a class="btn btn--dark" href={crawlx.repoUrl} rel="noopener">View source on GitHub</a></p>
             </div>
             <div class="crawlx__frame" data-frame>
-              <figure class="shot shot--wide" data-parallax="10">
-                <a href={crawlx.shots[0].src} target="_blank" rel="noopener" aria-label="Open the full-size screenshot in a new tab"><img src={crawlx.shots[0].src} width={crawlx.shots[0].w} height={crawlx.shots[0].h} loading="lazy" decoding="async" alt={crawlx.shots[0].alt} /></a>
-                <figcaption><code>{crawlx.shots[0].caption}</code></figcaption>
-              </figure>
-              <div class="crawlx__row">
-                <figure class="shot" data-parallax="-8">
-                  <a href={crawlx.shots[1].src} target="_blank" rel="noopener" aria-label="Open the full-size screenshot in a new tab"><img src={crawlx.shots[1].src} width={crawlx.shots[1].w} height={crawlx.shots[1].h} loading="lazy" decoding="async" alt={crawlx.shots[1].alt} /></a>
-                  <figcaption><code>{crawlx.shots[1].caption}</code></figcaption>
-                </figure>
-                <figure class="pool" aria-label="Illustration of CrawlX's worker pool: a task queue feeds ten workers, which send results to the report.">
-                  <div class="pool__stage" aria-hidden="true">
-                    <div class="pool__col pool__queue"><span class="pool__tok"></span><span class="pool__tok"></span><span class="pool__tok"></span></div>
-                    <div class="pool__workers">{Array.from({ length: crawlx.pipeline.workers }).map(() => <i class="pool__w"></i>)}</div>
-                    <div class="pool__col pool__out"><i></i><i></i><i></i></div>
-                  </div>
-                  <ul class="pool__legend">{crawlx.pipeline.steps.map((s) => <li>{s}</li>)}</ul>
-                  <figcaption>Illustration: <code>NumWorkers = 10</code> in <code>crawler.go</code>.</figcaption>
-                </figure>
+              <div class="demo demo--cx" data-zoom data-cx>
+                <noscript><p class="dm__note">The crawl demonstration needs JavaScript. It is a simulation on fictional data.</p></noscript>
+              </div>
+              <div class="crawlx__real">
+                <p class="dm__h">From the real program <span class="dm__dim">screenshots of crawlx run locally</span></p>
+                <div class="crawlx__row">
+                  {crawlx.shots.map((sh) => (
+                    <figure class="shot">
+                      <a href={sh.src} target="_blank" rel="noopener" aria-label="Open the full-size screenshot in a new tab"><img src={sh.src} width={sh.w} height={sh.h} loading="lazy" decoding="async" alt={sh.alt} /></a>
+                      <figcaption><code>{sh.caption}</code></figcaption>
+                    </figure>
+                  ))}
+                </div>
               </div>
             </div>
           </article>
 
           <article class="project project--cli" id={cliCrawler.id} aria-labelledby="cli-h">
-            <div class="cli__panel" data-frame>
-              <p class="cli__usage" aria-label="Usage">
-                <span class="t1">{cliCrawler.usage[0]}</span> <span>{cliCrawler.usage[1]}</span> <span class="t2">{cliCrawler.usage[2]}</span> <span class="t2">{cliCrawler.usage[3]}</span>
-              </p>
-              <dl class="cli__opts" data-reveal-group>
-                {cliCrawler.options.map(([k, d]) => <div data-reveal-item><dt>{k}</dt><dd>{d}</dd></div>)}
-              </dl>
-              <p class="cli__note">{cliCrawler.note}</p>
-            </div>
-            <div class="project__text" data-reveal-group>
+            <div class="project__text project__text--wide" data-reveal-group>
               <p class="kicker" data-reveal-item>02 &middot; {cliCrawler.kicker}</p>
               <h3 class="h3" id="cli-h" data-reveal-item>{cliCrawler.name}</h3>
               <p class="lede" data-reveal-item>{cliCrawler.lede}</p>
               <p class="project__links" data-reveal-item><a class="btn btn--dark" href={cliCrawler.repoUrl} rel="noopener">View source on GitHub</a></p>
             </div>
+            <div class="cli__panel" data-frame>
+              <div class="demo demo--cl" data-zoom data-cli>
+                <noscript><p class="dm__note">The crawler replay needs JavaScript. It shows a sample run on fixture pages.</p></noscript>
+              </div>
+              <details class="cli__ref">
+                <summary>All options, from the README</summary>
+                <p class="cli__usage" aria-label="Usage">
+                  <span class="t1">{cliCrawler.usage[0]}</span> <span>{cliCrawler.usage[1]}</span> <span class="t2">{cliCrawler.usage[2]}</span> <span class="t2">{cliCrawler.usage[3]}</span>
+                </p>
+                <dl class="cli__opts">
+                  {cliCrawler.options.map(([k, d]) => <div><dt>{k}</dt><dd>{d}</dd></div>)}
+                </dl>
+              </details>
+            </div>
           </article>
         </div>
       </section>
 
-      <Lab />
+      <Cerberus />
       <Pwndbg />
       <Toolkit />
       <Writing />

@@ -9,10 +9,11 @@ import { resume } from '../data/site';
         <dl class="facts" data-reveal-item>
           {resume.facts.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
         </dl>
-        <a class="dl" href={resume.pdf.href} download={resume.pdf.filename} data-reveal-item>
+        <a class="dl" href={resume.pdf.href} download={resume.pdf.filename} type="application/pdf" data-reveal-item>
           <span class="dl__label">{resume.pdf.label}</span>
           <span class="dl__meta">{resume.pdf.meta}</span>
         </a>
+        <p class="dl__note" data-reveal-item>{resume.pdf.note} <a class="textlink" href={resume.pdf.href} target="_blank" rel="noopener">Open in the browser</a></p>
       </div>
     </aside>
     <div class="resume__main">

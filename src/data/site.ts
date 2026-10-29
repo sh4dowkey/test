@@ -14,14 +14,11 @@
 export const person = {
   name: 'Anant Pandey',
   fullName: 'Anant Kumar Pandey',
-  /** Three concrete things the portfolio contains. `href` is the section that proves each one. */
-  heroLines: [
-    { text: 'Python & Go tools.', href: '#crawlx' },
-    { text: 'Security labs.', href: '#lab' },
-    { text: 'Open-source work.', href: '#pwndbg' },
-  ],
-  intro: 'Two command-line crawlers, an Active Directory lab that is still being built, and a merged change to Pwndbg. Each one links to its public source.',
-  description: 'Anant Pandey: Python and Go security tools, an Active Directory lab and a merged contribution to Pwndbg.',
+  eyebrow: 'Anant Pandey · DevOps at Bobcares',
+  headline: ['Infrastructure,', 'automation', 'and security.'],
+  intro: 'I work in DevOps at Bobcares, where my team supports client servers and infrastructure. Outside work I build Python and Go tools, an Active Directory lab and open-source changes, each linked to public source.',
+  location: 'Jharsuguda, Odisha, India',
+  description: 'Anant Pandey: DevOps at Bobcares, with Python and Go tools, an Active Directory purple-team lab design and a merged Pwndbg contribution.',
 };
 
 /* ---------------------------------------------------------------- profiles */
@@ -37,13 +34,13 @@ export const profiles = {
 export const index = [
   { id: 'crawlx', n: '01', name: 'CrawlX', kind: 'Tool', meta: 'Go · concurrent web crawler', href: '#crawlx' },
   { id: 'cli-crawler', n: '02', name: 'CLI Web Crawler', kind: 'Tool', meta: 'Python · robots.txt-aware', href: '#cli-crawler' },
-  { id: 'ad-lab', n: '03', name: 'Active Directory lab', kind: 'Lab', meta: 'Windows Server 2019 · in progress', href: '#lab' },
+  { id: 'ad-lab', n: '03', name: 'Project Cerberus', kind: 'Lab', meta: 'Active Directory purple team · simulation', href: '#lab' },
   { id: 'pwndbg', n: '04', name: 'Pwndbg #3160', kind: 'Open source', meta: 'cymbol subcommands · merged', href: '#pwndbg' },
 ];
 
 export const work = {
   heading: 'Selected work',
-  lede: 'Four public repositories. Where something is unfinished, it says so.',
+  lede: 'Public repositories and one upstream contribution. Where something is unfinished or simulated, it says so.',
 };
 
 export const crawlx = {
@@ -52,8 +49,6 @@ export const crawlx = {
   kicker: 'Go · command-line tool',
   lede: 'A concurrent web crawler. Give it a starting URL and a depth; a pool of workers fetches pages, follows links on the same domain, and prints a report that groups errors by kind.',
   repoUrl: 'https://github.com/sh4dowkey/Crawlx',
-  /** From internal/crawl/crawler.go: NumWorkers = 10, buffered `tasks` and `results` channels. */
-  pipeline: { workers: 10, steps: ['Task queue', 'Ten workers', 'Report'] },
   facts: [
     ['Concurrency', 'Ten workers reading from a buffered task channel'],
     ['Scope', 'Same-domain links up to a chosen depth (default 2)'],
@@ -89,9 +84,9 @@ export const cliCrawler = {
 /** Source of truth: the lab README's machine table and status table. Nothing here is added beyond them. */
 export const adLab = {
   id: 'lab',
-  name: 'Active Directory lab',
-  status: 'In progress',
-  lede: 'A home lab for learning Active Directory: a Windows Server 2019 domain controller running AD DS and DNS, and a domain-joined Windows 10 client on an internal network, documented with setup guides and screenshots.',
+  name: 'Project Cerberus',
+  status: 'Design and simulation',
+  lede: 'An Active Directory purple-team lab: a six-machine design with Sysmon telemetry, Winlogbeat forwarding, a SIEM, an AD CS honeypot and Sigma detections. In the public repository only DC01 and WIN10-1 are built. The interactive below is a local simulation of the design, not live telemetry.',
   repoUrl: 'https://github.com/sh4dowkey/ad-attack-defense-lab',
   network: 'ADLabNet (internal)',
   machines: [
@@ -143,29 +138,30 @@ export const pwndbg = {
 };
 
 /* ----------------------------------------------------------------- toolkit */
-export interface Tool { name: string; projects?: string[] }
+/** Only technologies backed by the job description or by a verified repository. No ratings. `evidence` ids match
+ *  `index` ids, plus 'work' for the Bobcares role. Add a tool here once its use is confirmed. */
+export interface Tool { name: string; note: string; evidence: string[] }
 export const toolkit = {
   heading: 'Toolkit',
-  lede: 'Grouped by what each tool is for. Choose a project to see what it used, or a tool to see where it appears.',
+  lede: 'Only what the work or a public repository shows. Point at a tool to see where it appears.',
+  evidenceTargets: [
+    { id: 'work', n: '00', name: 'Bobcares DevOps', href: '#resume' },
+  ],
   groups: [
-    { id: 'dev', title: 'Languages and development', items: [
-      { name: 'Python', projects: ['cli-crawler', 'pwndbg'] },
-      { name: 'Go', projects: ['crawlx'] },
-      { name: 'Git and GitHub', projects: ['pwndbg'] },
+    { id: 'ops', title: 'Operations', items: [
+      { name: 'Linux servers', note: 'Day-to-day server checks', evidence: ['work'] },
+      { name: 'Windows Server', note: 'Work environments; lab domain controller', evidence: ['work', 'ad-lab'] },
+      { name: 'AD DS and DNS', note: 'DC01 in the lab', evidence: ['ad-lab'] },
+      { name: 'PowerShell', note: 'Forest setup and verification in the lab', evidence: ['ad-lab'] },
     ] },
-    { id: 'sys', title: 'Systems and debugging', items: [
-      { name: 'Linux' },
-      { name: 'GDB and Pwndbg', projects: ['pwndbg'] },
-      { name: 'Windows Server, AD DS and DNS', projects: ['ad-lab'] },
-      { name: 'PowerShell', projects: ['ad-lab'] },
+    { id: 'dev', title: 'Development', items: [
+      { name: 'Python', note: 'CLI crawler; Pwndbg patch', evidence: ['cli-crawler', 'pwndbg'] },
+      { name: 'Go', note: 'CrawlX', evidence: ['crawlx'] },
+      { name: 'Git and GitHub', note: 'Public repositories; upstream pull request', evidence: ['crawlx', 'cli-crawler', 'ad-lab', 'pwndbg'] },
+      { name: 'GDB and Pwndbg', note: 'Merged cymbol refactor', evidence: ['pwndbg'] },
     ] },
-    { id: 'sec', title: 'Security tooling', items: [
-      { name: 'Burp Suite' },
-      { name: 'Nmap' },
-      { name: 'Wireshark' },
-      { name: 'Metasploit' },
-      { name: 'Nessus / OpenVAS' },
-      { name: 'Gobuster' },
+    { id: 'lab', title: 'Lab environment', items: [
+      { name: 'VirtualBox / VMware', note: 'Named in the lab README', evidence: ['ad-lab'] },
     ] },
   ] as { id: string; title: string; items: Tool[] }[],
 };
@@ -175,22 +171,27 @@ export const writing = {
   heading: 'Writing',
   lede: 'Beginner-level explainers on Medium.',
   articles: [
+    { title: 'cURL for Beginners: Essential Tips and Tricks', date: '28 May 2025', topic: 'Command line', url: 'https://medium.com/@pandeyanant733/curl-for-beginners-essential-tips-and-tricks-eb5098f026da' },
     { title: 'Hacking 101 — Crack the Code (Legally!)', date: '22 Feb 2025', topic: 'Ethical hacking', url: 'https://medium.com/@pandeyanant733/hacking-101-crack-the-code-legally-8c357651414f' },
     { title: 'Decoding the OWASP Top 10', date: '19 Feb 2025', topic: 'Web security', url: 'https://medium.com/@pandeyanant733/decoding-the-owasp-top-10-3f2af22570dc' },
-    { title: 'cURL for Beginners: Essential Tips and Tricks', date: '28 May 2025', topic: 'Command line', url: 'https://medium.com/@pandeyanant733/curl-for-beginners-essential-tips-and-tricks-eb5098f026da' },
   ],
 };
 
 /* ------------------------------------------------------------------ résumé */
 export const resume = {
   heading: 'Experience and background',
-  pdf: { href: '/resume.pdf', label: 'Download résumé', meta: 'PDF · 385 KB', filename: 'Anant-Pandey-Resume.pdf' },
+  pdf: { href: '/resume.pdf', label: 'Download résumé', meta: 'PDF · 385 KB', filename: 'Anant-Pandey-Resume.pdf', note: 'The original résumé file, unchanged. It predates the current role and still lists Bhubaneswar.' },
   facts: [
-    ['Based in', 'Bhubaneswar, Odisha, India'],
+    ['Based in', 'Jharsuguda, Odisha, India'],
+    ['Employer', 'Bobcares (Poornam Info Vision Pvt. Ltd.)'],
     ['Degree', 'B.Tech, Computer Science, 2022 – 2026'],
   ] as [string, string][],
   /** Newest first. */
   timeline: [
+    { when: 'June 2026 – present', title: 'DevOps', org: 'Bobcares · Poornam Info Vision Pvt. Ltd. · Jharsuguda',
+      text: 'Part of a team that supports different clients across L1, L2 and L3 support tiers. My work includes checking Linux servers, working in Linux and Windows server environments, and supporting infrastructure operations.',
+      textNote: 'A team-level description. It does not claim that I personally handle every tier.',
+      review: 'Confirm the exact job title and start date (only “June 2026” was given) before the strict build is cleared.' },
     { when: 'Jul 2025', title: 'Pwndbg contribution merged', org: 'pwndbg/pwndbg · open source',
       text: 'Refactored the cymbol command to use subcommands, with its documentation.',
       link: { label: 'Pull request #3160', href: 'https://github.com/pwndbg/pwndbg/pull/3160' } },
@@ -201,10 +202,10 @@ export const resume = {
       ],
       text: 'Reconnaissance, vulnerability assessment and exploitation validation on web and network targets; recursive crawling and parameter harvesting with a custom Python CLI tool; written findings with remediation recommendations.',
       textNote: 'Responsibilities as written on the résumé, which gives the same text for both roles.' },
-    { when: '2022 – 2026', title: 'B.Tech, Computer Science', org: 'Trident Academy of Technology, Bhubaneswar' },
+    { when: '2022 – 2026', title: 'B.Tech, Computer Science', org: 'Trident Academy of Technology, Bhubaneswar', review: 'Graduation status shown exactly as on the résumé (2022 – 2026); confirm.' },
   ] as {
     when: string; title: string; org: string; text?: string; textNote?: string;
-    link?: { label: string; href: string };
+    link?: { label: string; href: string }; review?: string;
     roles?: { when: string; role: string; org: string }[];
   }[],
   credentials: [
