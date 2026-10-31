@@ -49,3 +49,28 @@ Build and strict build pass; `tsc` clean. No console errors, no horizontal overf
 **Résumé** – `public/resume.pdf` is the original, unmodified; it still says Bhubaneswar and predates the Bobcares role, and the page says so. `public/_headers` pins its content type on Netlify.
 
 **Tests** – `python3 tools/qa.py [dir]` after `npm run build`: browser checks (about 70) including deterministic seeks into each loop. Not tested: real devices, Safari, Firefox, screen readers, performance profiling.
+
+
+---
+## Polish pass (preserves the existing design)
+
+**Mobile opening** – Root cause: `hero-scene.ts` measured the `.hero` *section*, which contains the GSAP pin spacer (about 2.15 screens high once pinned), so any phone resize (URL bar showing or hiding) re-measured the canvas at roughly double height and pushed the tree below the visible frame. It now measures `.hero__pin` (100svh) and re-measures only when that frame really changes (ResizeObserver). The mask, headline scale, nav tone and tree remain driven by one progress value. Phone headline is slightly narrower and scales less so it stays on screen while it fades. Test hook: `.hero.__hero.bounds()`.
+
+**Content** – The work section heading comes from `site.ts → work.heading` ("Portfolio"); the nav item is still "Work". Experience: Kochi, Kerala is the workplace; Jharsuguda is shown only as "Hometown" (résumé panel, contact). L1/L2/L3 wording and the tier note are removed; the description is limited to Linux/Windows server environments, checking Linux servers and infrastructure support. The résumé PDF itself is unchanged.
+
+**CrawlX screenshots** – a rule had made every caption `<code>` a two-column grid. Captions are now plain wrapping blocks (`text-wrap: balance`), images keep their ratio, and on phones the two screenshots stack instead of sitting side by side at ~130 to 180 px.
+
+**Pwndbg** – two triggers instead of one timeline: the command comparison runs from `.cym__usage` entering (top 90%) to the table's bottom reaching 64%, so paths draw while rows are visible; the evidence image has its own trigger (top 97% → top 48%) and is fully revealed with its top at mid-screen. Both scrub, so scrolling back reverses them. No new pin.
+
+**Navigation scroll** – `scrollToId` in `motion.ts`: quadratic in-out easing, duration 1.45 s plus 0.06 s per screen travelled (about 1.5 s for a neighbouring section, up to about 2.8 s across the page), `lock: false` so wheel/touch input still interrupts. Direct hash loads and reduced motion remain immediate. Lenis position is checked against `scrollY` in the tests.
+
+**Demonstration inspection (still fully automatic)**
+- CrawlX: hover, focus (Enter to pin) or tap a page. Incoming and outgoing links highlight, the rest recede, the inspector lists "Found on" and "Links to" (chips jump to that page). Tap again, or tap empty graph, to release.
+- CLI: any result row, queue chip or terminal line is focusable; it highlights its row, terminal line and stage in the rail, and shows the decision (queued, robots.txt rule, keyword match).
+- Cerberus: hosts, pipeline stages (now real buttons), events and alerts. The related hosts, beams, stream lines, alerts and timeline entries highlight together and the detail card explains the target. Highlights are applied in place; lists are never rebuilt for a highlight, otherwise keyboard focus and taps are lost (this was a bug found and fixed in testing). Selections clear when the loop restarts.
+- Labels are quiet text ("Simulated crawl · fictional site", "Sample run · fixture pages", and a muted "Simulated scenario: fixture events… not live telemetry" line for Cerberus). The loud pills are gone.
+- Bug found by testing and fixed: Cerberus' wrapper `<div data-stage>` matched the new `[data-stage]` pipeline selector, so hovering empty parts of the scene produced an invalid focus and threw in `render`. The wrapper is now `data-cbstage`, targets are validated, and `tools/qa.py` has a regression test.
+
+**Tests** – `python3 tools/qa.py` (after `npm run build`): 159 assertions pass on the final build, in desktop Chromium and Playwright's emulated phone viewports (touch + mobile emulation at 320, 360, 390, 430 px) including viewport resizes mid-sequence, a full-scroll mask/tone/text sync check, tap interactions at 390 px, reduced motion and JavaScript disabled. **Not tested:** real phones, Safari/iOS, Firefox, screen readers, performance profiling. The real iOS/Android URL-bar behaviour is reproduced only by resizing the emulated viewport.
+
+**Still flagged (strict build blocks)** – 12 items: job title and start date, graduation status, the DC01 and WS01 mapping to the lab repo, and the self-assessed toolkit items.

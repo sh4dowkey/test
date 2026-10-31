@@ -16,6 +16,7 @@ interface N { x: number; y: number; z: number; seed: number; g: number }
 const rng = (s: number) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) ^ Math.imul(s ^ (s >>> 13), 3266489909)), ((s ^= s >>> 16) >>> 0) / 4294967296);
 
 export function initHeroScene(hero: HTMLElement, o: { reduced: boolean; getP: () => number; setTone: (t: 'dark' | 'paper') => void }) {
+  const pin = hero.querySelector<HTMLElement>('.hero__pin')!;
   const canvas = hero.querySelector<HTMLCanvasElement>('.hero__canvas')!, paper = hero.querySelector<HTMLElement>('.hero__paper')!;
   const copies = Array.from(hero.querySelectorAll<HTMLElement>('.hero__copy'));
   const ctx = canvas.getContext('2d')!;
@@ -26,7 +27,8 @@ export function initHeroScene(hero: HTMLElement, o: { reduced: boolean; getP: ()
   let intro = o.reduced ? 1 : 0, p = o.reduced ? 0.0 : 0, active = false, raf = 0, px = 0, py = 0, tpx = 0, tpy = 0, lastClip = '';
 
   function setup() {
-    const r = hero.getBoundingClientRect(); W = r.width; H = r.height; dpr = Math.min(2, devicePixelRatio || 1);
+    /* The pinned frame, never `hero`: once pinned, the section also contains the pin spacer and is ~2x the screen high. */
+    W = pin.clientWidth; H = pin.clientHeight; dpr = Math.min(2, devicePixelRatio || 1);
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     tall = W / H < 0.9;
     const L = layoutFor(events, tall ? 'tall' : 'wide');
@@ -83,7 +85,7 @@ export function initHeroScene(hero: HTMLElement, o: { reduced: boolean; getP: ()
       ctx.font = '600 15px "Mona Sans Variable", system-ui, sans-serif'; ctx.fillStyle = `rgba(20,21,28,${a})`; ctx.fillText('01 · CrawlX', cx(), Math.min(H - 56, gBottom + 44)); ctx.textAlign = 'start';
     }
     // text: scales through the viewport and dissolves as the paper arrives
-    const s = 1 + p * (tall ? 0.38 : 0.26), ty = -p * H * 0.09, op = 1 - smooth(0.36, 0.62, p);
+    const s = 1 + p * (tall ? 0.15 : 0.26), ty = -p * H * 0.09, op = 1 - smooth(0.36, 0.62, p);
     copies.forEach((c) => { c.style.transform = `translate3d(0,${ty.toFixed(1)}px,0) scale(${s.toFixed(4)})`; c.style.opacity = op.toFixed(3); });
     hero.querySelector<HTMLElement>('.hero__cue')!.style.opacity = String(clamp(1 - p * 14) * intro);
     o.setTone(R > Math.min(H * 0.18, 140) && cy() - R < 40 ? 'paper' : 'dark');
@@ -99,7 +101,11 @@ export function initHeroScene(hero: HTMLElement, o: { reduced: boolean; getP: ()
   const stop = () => { active = false; cancelAnimationFrame(raf); };
   setup(); draw(0);
   new IntersectionObserver(([e]) => (e.isIntersecting ? start() : stop()), { rootMargin: '10% 0px' }).observe(hero);
-  let rz = 0; addEventListener('resize', () => { clearTimeout(rz); rz = window.setTimeout(() => { setup(); draw((performance.now() - t0) / 1000); }, 120); });
-  if (!o.reduced && matchMedia('(pointer:fine)').matches) hero.addEventListener('pointermove', (e) => { const r = hero.getBoundingClientRect(); tpx = (e.clientX - r.left) / r.width - 0.5; tpy = (e.clientY - r.top) / r.height - 0.5; });
+  let rz = 0, lw = W, lh = H;
+  // Re-measure only when the frame really changed. Phone URL-bar show/hide fires resize without changing the frame.
+  new ResizeObserver(() => { if (Math.abs(pin.clientWidth - lw) < 1 && Math.abs(pin.clientHeight - lh) < 1) return; clearTimeout(rz); rz = window.setTimeout(() => { setup(); lw = W; lh = H; draw((performance.now() - t0) / 1000); }, 100); }).observe(pin);
+  if (!o.reduced && matchMedia('(pointer:fine)').matches) hero.addEventListener('pointermove', (e) => { const r = pin.getBoundingClientRect(); tpx = (e.clientX - r.left) / r.width - 0.5; tpy = (e.clientY - r.top) / r.height - 0.5; });
+  /** Test hook: screen-space bounds of the resolved tree (and its caption) and the frame size. */
+  (hero as unknown as { __hero: unknown }).__hero = { get W() { return W; }, get H() { return H; }, get tall() { return tall; }, bounds: () => { const xs = targets.map((t) => t.x), ys = targets.map((t) => t.y); return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(gBottom + 44, ...ys) }; } };
   return { setIntro(v: number) { intro = v; if (!active) draw((performance.now() - t0) / 1000); }, redraw() { draw((performance.now() - t0) / 1000); } };
 }

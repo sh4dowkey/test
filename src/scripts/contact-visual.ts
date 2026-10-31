@@ -1,5 +1,5 @@
 /**
- * Contact visual: a signal leaves Jharsuguda and reaches each channel. Fine contour lines drift behind it, with
+ * Contact visual: a signal leaves Kochi and reaches each channel. Fine contour lines drift behind it, with
  * parallax on pointer movement; four arcs draw once, then a light pulse travels each in turn on a 9 s loop and
  * ripples where it lands. Hovering or focusing a contact link brightens its arc. Runs only while on screen; with
  * reduced motion it draws one finished frame.

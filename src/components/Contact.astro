@@ -10,7 +10,7 @@ const year = new Date().getFullYear();
         <p class="kicker kicker--d" data-reveal-item>Contact</p>
         <h2 class="h2 h2--sm" id="contact-h" data-reveal-item>{closing.heading}</h2>
         <p class="lede lede--d" data-reveal-item>{closing.lead}</p>
-        <p class="contact__place" data-reveal-item><span aria-hidden="true"></span>{person.location}</p>
+        <p class="contact__place" data-reveal-item><span aria-hidden="true"></span>Works in {person.location}<em>Hometown: {person.hometown}</em></p>
         <ul class="contact__links" data-links data-reveal-item>
           {rows.map((r) => (
             <li data-k={r.k}>

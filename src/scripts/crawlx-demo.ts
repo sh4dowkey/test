@@ -24,7 +24,7 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
 
   root.innerHTML = `
   <div class="dm__bar">
-    <span class="dm__badge" title="Frontend simulation, not the Go program">Demo · simulated data</span>
+    <span class="dm__tag" title="A frontend simulation, not the Go program">Simulated crawl · fictional site</span>
     <code class="dm__cmd">${esc(fx.command(DEPTH))}</code>
     <span class="dm__loop" aria-hidden="true"><i data-loop></i></span>
   </div>
@@ -40,7 +40,7 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
       <div class="cx__q"><span class="cx__qh">Task queue</span><ol data-queue></ol></div>
     </div>
   </div>
-  <p class="dm__note">A browser simulation on a fictional site with hand-written data, replaying the logic of CrawlX (${C.workers} workers, buffer ${C.taskBuffer}, ${C.maxRetries} attempts, ${C.requestDelayMs} ms delay, from <code>crawler.go</code>). It is not the Go program and not real network activity.</p>`;
+  <p class="dm__note">A browser simulation on a fictional site with hand-written data, replaying the logic of CrawlX; hover, focus or tap a page to inspect it (${C.workers} workers, buffer ${C.taskBuffer}, ${C.maxRetries} attempts, ${C.requestDelayMs} ms delay, from <code>crawler.go</code>). It is not the Go program and not real network activity.</p>`;
 
   const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const svg = $<SVGSVGElement>('[data-svg]'), stage = $('[data-stage]'), lanes = $('[data-lanes]');
@@ -50,7 +50,7 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
   let mode: 'wide' | 'tall' = root.clientWidth < 640 ? 'tall' : 'wide';
   let L: Layout = layoutFor(events, mode);
   let nodeEls = new Map<string, SVGGElement>(), edgeEls: { el: SVGPathElement; a: string; b: string; t: number; kind: string }[] = [], malEls: SVGTextElement[] = [];
-  let head!: SVGGElement, hover: string | null = null, st: St = fresh(), idx = 0, prevT = -1, lastSig = '', lastQ = '';
+  let head!: SVGGElement, hover: string | null = null, selected: string | null = null, st: St = fresh(), idx = 0, prevT = -1, lastSig = '', lastQ = '';
   const mk = (tag: string, attrs: Record<string, string>, parent?: Element) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent?.appendChild(e); return e; };
   const P = (u: string) => L.pts.get(u) ?? L.ext.get(u)!;
   const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => mode === 'wide' ? `M${a.x} ${a.y}C${a.x + 70} ${a.y} ${b.x - 70} ${b.y} ${b.x} ${b.y}` : `M${a.x} ${a.y}C${a.x} ${a.y + 46} ${b.x} ${b.y - 46} ${b.x} ${b.y}`;
@@ -74,8 +74,10 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
       mk('circle', { class: 'n__ring', r: '12' }, inner);
       if (ext) mk('rect', { class: 'n__dot', x: '-6', y: '-6', width: '12', height: '12', rx: '3' }, inner); else mk('circle', { class: 'n__dot', r: '6.5' }, inner);
       if (L.labels) { const t = mk('text', { class: 'n__t', x: '13', y: '3.6' }, inner); t.textContent = ext ? u.replace('https://', '').replace(/\/$/, '') : short(u); }
-      g.addEventListener('pointerenter', () => { hover = u; loop.redraw(); }); g.addEventListener('pointerleave', () => { hover = null; loop.redraw(); });
+      g.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; hover = u; loop.redraw(); }); g.addEventListener('pointerleave', () => { hover = null; loop.redraw(); });
       g.addEventListener('focus', () => { hover = u; loop.redraw(); }); g.addEventListener('blur', () => { hover = null; loop.redraw(); });
+      g.addEventListener('click', (e) => { e.stopPropagation(); pick(u); });
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(u); } });
       nodeEls.set(u, g);
     };
     L.tree.forEach((n) => addNode(n.path, false)); fx.externals.forEach((x) => addNode(x.url, true));
@@ -83,19 +85,23 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
     st = fresh(); idx = 0; prevT = -1; lastSig = ''; lastQ = '';
   }
 
+  const pick = (u: string) => { selected = selected === u ? null : u; loop.redraw(); };
   function rebuild(simT: number) {
-    if (simT < prevT) { st = fresh(); idx = 0; lastSig = ''; lastQ = ''; }
+    if (simT < prevT) { st = fresh(); idx = 0; lastSig = ''; lastQ = ''; if (prevT - simT > 800) selected = null; }
     prevT = simT;
     while (idx < events.length && events[idx].t <= simT) { apply(st, events[idx], DEPTH); idx++; }
   }
 
-  const detail = (u: U | undefined, url: string) => {
+  const relChip = (url: string, kind: string) => `<button type="button" class="k k--${kind}" data-sel="${esc(url)}">${esc(short(url))}</button>`;
+  const detail = (u: U | undefined, url: string, pinnedNow: boolean) => {
     if (!u) return `<p class="cx__k">Not discovered yet</p><p class="cx__url">${esc(url)}</p>`;
     const pg = pageBy.get(url);
     const res = u.state === 'external' ? 'External: recorded in the report, not crawled' : u.state === 'queued' ? 'Queued' : u.state === 'fetching' ? (u.retries ? `Retry ${u.retries} of ${C.maxRetries - 1}…` : 'Fetching…') : u.status === 0 ? `Failed after ${C.maxRetries} attempts` : `[${esc(code(u.status!))}] ${u.ms}ms · ${u.nlinks ?? 0} links`;
-    return `<p class="cx__k">${hover ? 'Inspecting' : 'Crawling'}</p><p class="cx__url">${esc(url === '/' ? ORIGIN_SHOWN : url)}</p>
+    const inc = st.edges.filter((e) => e.b === url), out = st.edges.filter((e) => e.a === url);
+    const rel = `<div class="cx__rel">${inc.length ? `<p><span>Found on</span>${inc.map((e) => relChip(e.a, e.kind)).join('')}</p>` : ''}${out.length ? `<p><span>Links to</span>${out.map((e) => relChip(e.b, e.kind)).join('')}</p>` : u.nlinks && u.state === 'ok' ? `<p><span>${u.nlinks} links found, not followed: depth limit reached</span></p>` : ''}</div>`;
+    return `<p class="cx__k">${hover || pinnedNow ? 'Inspecting' : 'Crawling'}${pinnedNow && !hover ? ' · tap again to release' : ''}</p><p class="cx__url">${esc(url === '/' ? ORIGIN_SHOWN : url)}</p>
       <dl class="cx__facts"><div><dt>Depth</dt><dd>${u.depth}</dd></div><div><dt>Worker</dt><dd>${u.w !== undefined && u.state !== 'external' ? u.w + 1 : '–'}</dd></div><div class="cx__w"><dt>Result</dt><dd>${res}</dd></div></dl>
-      ${pg?.title && u.state === 'ok' ? `<p class="cx__title">“${esc(pg.title)}”</p>` : ''}`;
+      ${pg?.title && u.state === 'ok' ? `<p class="cx__title">“${esc(pg.title)}”</p>` : ''}${rel}`;
   };
 
   function render(uMs: number, fade: number) {
@@ -104,17 +110,19 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
     const simT = clamp((uMs - INTRO) / SPEED, 0, total + 200);
     rebuild(simT);
     const urls = [...st.urls.values()], pages = urls.filter((u) => u.state !== 'external');
+    const focus = hover ?? selected, linked = new Set<string>();
+    if (focus) st.edges.forEach((e) => { if (e.a === focus) linked.add(e.b); if (e.b === focus) linked.add(e.a); });
     nodeEls.forEach((g, u) => {
       const s = st.urls.get(u), inner = g.firstElementChild as SVGGElement;
       if (!s) { g.dataset.s = 'hidden'; return; }
-      g.dataset.s = s.state; g.classList.toggle('is-hover', hover === u);
-      const k = ease((simT - (seenAt.get(u) ?? 0)) / 380); inner.setAttribute('transform', `scale(${(0.2 + 0.8 * k).toFixed(3)})`); inner.style.opacity = String(k);
+      g.dataset.s = s.state; g.classList.toggle('is-hover', focus === u); g.classList.toggle('is-linked', linked.has(u));
+      const k = ease((simT - (seenAt.get(u) ?? 0)) / 380); inner.setAttribute('transform', `scale(${(0.2 + 0.8 * k).toFixed(3)})`); inner.style.opacity = String(k * (focus && focus !== u && !linked.has(u) ? 0.35 : 1));
     });
     edgeEls.forEach((e) => {
       if (simT < e.t) { e.el.style.opacity = '0'; return; }
-      const p = ease((simT - e.t) / 520);
-      e.el.style.opacity = e.kind === 'dup' ? String(0.3 * p) : '1'; e.el.style.strokeDashoffset = String(1 - p);
-      e.el.classList.toggle('is-active', e.kind === 'new' && st.urls.get(e.b)?.state === 'fetching');
+      const p = ease((simT - e.t) / 520), rel = !!focus && (e.a === focus || e.b === focus);
+      e.el.style.opacity = String((e.kind === 'dup' ? 0.3 * p : 1) * (focus && !rel ? 0.16 : 1)); e.el.style.strokeDashoffset = String(1 - p);
+      e.el.classList.toggle('is-rel', rel); e.el.classList.toggle('is-out', rel && e.a === focus); e.el.classList.toggle('is-active', e.kind === 'new' && st.urls.get(e.b)?.state === 'fetching');
     });
     malEls.forEach((m, i) => { m.style.opacity = simT >= malAt[i].t ? '1' : '0'; });
     const started = urls.filter((u) => u.tStart !== undefined && u.state !== 'external').sort((a, b) => b.tStart! - a.tStart!)[0];
@@ -134,12 +142,12 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
       const bar = li.querySelector('u') as HTMLElement;
       if (busy) { const s = st.urls.get(u!)!, d = doneAt.get(u!)!; bar.style.transform = `scaleX(${clamp((simT - s.tStart!) / Math.max(1, d - s.tStart!)).toFixed(3)})`; } else bar.style.transform = 'scaleX(0)';
     });
-    const cur = hover ?? started?.url ?? fx.start, done = st.reported;
+    const cur = focus ?? started?.url ?? fx.start, done = st.reported;
     const rp = done ? ease((uMs - INTRO - CRAWL) / REPORT_BUILD) : 0;
-    const now = $('[data-now]'); now.style.opacity = String(hover ? 1 : 1 - rp);
-    const html = detail(st.urls.get(cur), cur);
+    const now = $('[data-now]'); now.style.opacity = String(focus ? 1 : 1 - rp);
+    const html = detail(st.urls.get(cur), cur, !!selected);
     if (now.dataset.h !== html) { now.dataset.h = html; now.innerHTML = html; }
-    const rep = $('[data-report]'); rep.style.opacity = String(hover ? 0 : rp); rep.style.visibility = rp > 0 && !hover ? 'visible' : 'hidden';
+    const rep = $('[data-report]'); rep.style.opacity = String(focus ? 0 : rp); rep.style.visibility = rp > 0 && !focus ? 'visible' : 'hidden';
     if (rp > 0 && !rep.dataset.built) {
       const g = (s: U['state']) => pages.filter((u) => u.state === s).length;
       const ok = g('ok') + g('redirect'), c4 = g('client'), c5 = g('server'), net = g('network'), tot = pages.length;
@@ -157,6 +165,7 @@ export function initCrawlxDemo(root: HTMLElement, opts: { reduced: boolean }) {
     if (rp === 0 && rep.dataset.built) { delete rep.dataset.built; rep.innerHTML = ''; }
   }
 
+  root.addEventListener('click', (e) => { const b = (e.target as Element).closest<HTMLElement>('[data-sel]'); if (b) { selected = b.dataset.sel!; loop.redraw(); } else if ((e.target as Element).closest('[data-svg]') && selected) { selected = null; loop.redraw(); } });
   build();
   const loop = createLoop(root, { cycle: CYCLE, reduced: opts.reduced, staticU: INTRO + CRAWL + HOLD * 0.55, render });
   new ResizeObserver(() => { const m = root.clientWidth < 640 ? 'tall' : 'wide'; if (m !== mode) { mode = m; build(); loop.redraw(); } }).observe(root);

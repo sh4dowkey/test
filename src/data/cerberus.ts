@@ -30,8 +30,15 @@ export const machines: Machine[] = [
   { id: 'kali', name: 'KALI', role: 'Attacker machine', os: 'Kali Linux', ip: 'DHCP', ram: '2 GB', cpu: '2 cores', plate: 'atk', build: 'planned', note: 'Listed as coming soon in the lab repo.' },
 ];
 
-/** Components of the telemetry pipeline, in order (from the PDF). */
+/** Components of the telemetry pipeline, in order (from the PDF), with what each one does. */
 export const pipeline = ['Sysmon', 'Winlogbeat', 'Elasticsearch / OpenSearch', 'Sigma rules', 'Alert'];
+export const pipelineInfo: { name: string; where: string; what: string }[] = [
+  { name: 'Sysmon', where: 'DC01, CA01, SRV01, WS01', what: 'Kernel-level endpoint telemetry with the SwiftOnSecurity configuration: process creation with parent and command line, network connections, named pipes.' },
+  { name: 'Winlogbeat', where: 'DC01, CA01, SRV01, WS01', what: 'A lightweight shipper that reads the Security, System and Sysmon channels and forwards each event to the SIEM over the isolated network.' },
+  { name: 'Elasticsearch / OpenSearch', where: 'SIEM01', what: 'Single-node store and search on the dedicated SIEM host, with Kibana for hunting. It keeps ingestion load off the domain controller.' },
+  { name: 'Sigma rules', where: 'SIEM01', what: 'SIEM-agnostic detection rules: three deception rules (honeypot template, honeytoken account, honeytoken file) and three TTP rules.' },
+  { name: 'Alert', where: 'SIEM01', what: 'A rule match becomes an alert with severity. Deception alerts are near-zero false positive and give the hunt its starting point.' },
+];
 
 export interface Phase { id: string; name: string; dur: number; technique: string; text: string; focus: string[] }
 export const phases: Phase[] = [

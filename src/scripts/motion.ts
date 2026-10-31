@@ -47,10 +47,16 @@ if (!lite && !reduced) {
   gsap.ticker.lagSmoothing(0);
   (window as unknown as { __lenis?: Lenis }).__lenis = lenis;
 }
+/** Deliberate, distance-aware navigation: about 1.5 s for a neighbouring section, up to about 2.8 s across the whole page,
+ *  with a symmetric ease so the page accelerates away and settles on the target instead of flying past it. */
+const navEase = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);   // quadratic in-out: a calm peak speed
 const scrollToId = (id: string, immediate = false) => {
   const el = id === '#top' ? null : q(id);
   if (id !== '#top' && !el) return false;
-  if (lenis) lenis.scrollTo(el ?? 0, { duration: 1.1, immediate });
+  if (lenis) {
+    const y = el ? el.getBoundingClientRect().top + window.scrollY : 0, screens = Math.abs(y - window.scrollY) / innerHeight;
+    lenis.scrollTo(el ?? 0, { duration: 1.45 + Math.min(1.35, screens * 0.06), easing: navEase, immediate, lock: false });
+  }
   else if (el) el.scrollIntoView(); else window.scrollTo(0, 0);
   return true;
 };
@@ -166,17 +172,20 @@ function initCymbol() {
   gsap.set(usage, { clipPath: 'inset(0 100% 0 0)' }); gsap.set(head, { opacity: 0 });
   gsap.set(olds, { opacity: 0, x: -12, '--s': '0%' }); gsap.set(links, { scaleX: 0 }); gsap.set(news, { opacity: 0, x: -14 });
   gsap.set(added, { opacity: 0, y: 10 }); gsap.set(fig, { clipPath: 'inset(0 0 100% 0)' }); gsap.set(img, { scale: 1.08 });
-  const tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: cym, start: 'top 74%', end: 'bottom 46%', scrub: 0.7 } });
-  tl.to(usage[0], { clipPath: 'inset(0 0% 0 0)', duration: 0.8 }, 0)                                // 1  the old syntax
-    .to(head, { opacity: 1, duration: 0.3 }, 0.7)
-    .to(olds, { opacity: 1, x: 0, duration: 0.5, stagger: 0.07 }, 0.8)                                // 2  each old option
-    .to(links, { scaleX: 1, duration: 0.55, stagger: 0.09 }, 1.45)                                    // 3  paths draw
-    .to(olds, { '--s': '100%', opacity: 0.45, duration: 0.45, stagger: 0.07 }, 1.7)                   // 4  old options struck
-    .to(news, { opacity: 1, x: 0, duration: 0.5, stagger: 0.09 }, 1.8)                                // 5  subcommands settle
-    .to(usage[1], { clipPath: 'inset(0 0% 0 0)', duration: 0.8 }, 2.6)                                // 6  new syntax
-    .to(added, { opacity: 1, y: 0, duration: 0.4 }, 3.2)
-    .to(fig, { clipPath: 'inset(0 0 0% 0)', duration: 0.9 }, 3.3).to(img, { scale: 1, duration: 0.9 }, 3.3)   // 7  the patch evidence
-    .to({}, { duration: 0.3 });
+  // 1. the command comparison starts as the block enters the view and finishes while its last rows are still on screen
+  const tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: usage[0], endTrigger: q('.cym__table', cym)!, start: 'top 90%', end: 'bottom 64%', scrub: 0.6 } });
+  tl.to(usage[0], { clipPath: 'inset(0 0% 0 0)', duration: 0.7 }, 0)                                 // the old syntax
+    .to(head, { opacity: 1, duration: 0.25 }, 0.55)
+    .to(olds, { opacity: 1, x: 0, duration: 0.5, stagger: 0.07 }, 0.65)                              // each old option
+    .to(links, { scaleX: 1, duration: 0.55, stagger: 0.09 }, 1.15)                                   // paths draw while the rows are visible
+    .to(olds, { '--s': '100%', opacity: 0.45, duration: 0.45, stagger: 0.07 }, 1.4)                  // old options struck
+    .to(news, { opacity: 1, x: 0, duration: 0.5, stagger: 0.09 }, 1.5)                               // subcommands settle
+    .to(usage[1], { clipPath: 'inset(0 0% 0 0)', duration: 0.6 }, 2.2)                               // the new syntax
+    .to(added, { opacity: 1, y: 0, duration: 0.35 }, 2.75)
+    .to({}, { duration: 0.15 });
+  // 2. the patch evidence has its own trigger: it starts as the image nears the viewing area and is done with its top at mid-screen
+  gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: fig, start: 'top 97%', end: 'top 48%', scrub: 0.5 } })
+    .to(fig, { clipPath: 'inset(0 0 0% 0)', duration: 1 }, 0).to(img, { scale: 1, duration: 1 }, 0);
 }
 
 /* ---------------------------------------------------------------- toolkit: names always visible; a trace and a wave pass through the groups; focus shows the evidence */

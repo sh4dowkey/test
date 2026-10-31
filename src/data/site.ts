@@ -17,7 +17,8 @@ export const person = {
   eyebrow: 'Anant Pandey · DevOps at Bobcares',
   headline: ['Infrastructure,', 'automation', 'and security.'],
   intro: 'I work in DevOps at Bobcares, where my team supports client servers and infrastructure. Outside work I build Python and Go tools, an Active Directory lab and open-source changes, each linked to public source.',
-  location: 'Jharsuguda, Odisha, India',
+  location: 'Kochi, Kerala, India',
+  hometown: 'Jharsuguda, Odisha, India',
   description: 'Anant Pandey: DevOps at Bobcares, with Python and Go tools, an Active Directory purple-team lab design and a merged Pwndbg contribution.',
 };
 
@@ -39,7 +40,7 @@ export const index = [
 ];
 
 export const work = {
-  heading: 'Selected work',
+  heading: 'Portfolio',
   lede: 'Public repositories and one upstream contribution. Where something is unfinished or simulated, it says so.',
 };
 
@@ -187,15 +188,15 @@ export const resume = {
   heading: 'Experience and background',
   pdf: { href: '/resume.pdf', label: 'Download résumé', meta: 'PDF · 385 KB', filename: 'Anant-Pandey-Resume.pdf', note: 'The original résumé file, unchanged. It predates the current role and still lists Bhubaneswar.' },
   facts: [
-    ['Based in', 'Jharsuguda, Odisha, India'],
+    ['Works in', 'Kochi, Kerala, India'],
+    ['Hometown', 'Jharsuguda, Odisha, India'],
     ['Employer', 'Bobcares (Poornam Info Vision Pvt. Ltd.)'],
     ['Degree', 'B.Tech, Computer Science, 2022 – 2026'],
   ] as [string, string][],
   /** Newest first. */
   timeline: [
-    { when: 'June 2026 – present', title: 'DevOps', org: 'Bobcares · Poornam Info Vision Pvt. Ltd. · Jharsuguda',
-      text: 'Part of a team that supports different clients across L1, L2 and L3 support tiers. My work includes checking Linux servers, working in Linux and Windows server environments, and supporting infrastructure operations.',
-      textNote: 'A team-level description. It does not claim that I personally handle every tier.',
+    { when: 'June 2026 – present', title: 'DevOps', org: 'Bobcares · Poornam Info Vision Pvt. Ltd. · Kochi, Kerala',
+      text: 'My work is in Linux and Windows server environments: checking Linux servers and supporting infrastructure operations.',
       review: 'Confirm the exact job title and start date (only “June 2026” was given) before the strict build is cleared.' },
     { when: 'Jul 2025', title: 'Pwndbg contribution merged', org: 'pwndbg/pwndbg · open source',
       text: 'Refactored the cymbol command to use subcommands, with its documentation.',

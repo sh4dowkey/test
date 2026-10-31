@@ -77,7 +77,7 @@ export function initCliDemo(root: HTMLElement, opts: { reduced: boolean }) {
 
   root.innerHTML = `
   <div class="dm__bar">
-    <span class="dm__badge dm__badge--ink" title="Replay of a sample run">Sample run · fixture pages</span>
+    <span class="dm__tag" title="A replay of one sample run on fixture pages">Sample run · fixture pages</span>
     <ol class="cl__rail" data-rail aria-label="Stages of the run">${STAGES.map((s) => `<li>${s}</li>`).join('')}</ol>
     <span class="dm__loop" aria-hidden="true"><i data-loop></i></span>
   </div>
@@ -102,7 +102,9 @@ export function initCliDemo(root: HTMLElement, opts: { reduced: boolean }) {
 
   const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const out = $('[data-out]'), stage = $('[data-stage]'), rail = Array.from($('[data-rail]').children) as HTMLElement[];
-  let shown = -1, lastQ = '', lastR = '';
+  let shown = -1, lastQ = '', lastR = '', hover: string | null = null, pinned: string | null = null;
+  // which step first dealt with each URL (drives the stage and decision shown when a URL is inspected)
+  const stepOf = new Map<string, number>(); sim.steps.forEach((st, i) => { if (st.current && (!stepOf.has(st.current) || (sim.steps[stepOf.get(st.current)!].quick && !st.quick))) stepOf.set(st.current, i); });
   const promptHtml = (n: number) => `<span class="c-dim">$</span> ${esc(cmd.slice(0, n))}`;
 
   function render(u: number, fade: number) {
@@ -111,11 +113,11 @@ export function initCliDemo(root: HTMLElement, opts: { reduced: boolean }) {
     // how many steps have started
     let n = 0; while (n < starts.length && u >= starts[n]) n++;
     const typed = clamp(u / TYPE) * cmd.length;
-    if (n < shown) { out.innerHTML = ''; shown = -1; lastQ = ''; lastR = ''; }
+    if (n < shown) { out.innerHTML = ''; shown = -1; lastQ = ''; lastR = ''; pinned = null; }
     if (shown === -1) { out.innerHTML = `<span data-p></span>`; shown = 0; }
     const p = out.firstElementChild as HTMLElement; const typing = u < TYPE;
     const ph = promptHtml(Math.round(typed)) + (typing || n === 0 ? '<span class="cl__caret"></span>' : ''); if (p.dataset.h !== ph) { p.dataset.h = ph; p.innerHTML = ph; }
-    while (shown < n) { const s = sim.steps[shown]; s.lines.forEach((l) => { const d = document.createElement('span'); d.className = 'cl__ln'; d.innerHTML = '\n' + l; out.appendChild(d); }); shown++; out.scrollTop = out.scrollHeight; }
+    while (shown < n) { const s = sim.steps[shown]; s.lines.forEach((l) => { const d = document.createElement('span'); d.className = 'cl__ln'; d.innerHTML = '\n' + l; if (s.current) { d.dataset.url = s.current; d.tabIndex = 0; d.setAttribute('role', 'button'); } out.appendChild(d); }); shown++; out.scrollTop = out.scrollHeight; }
     const cur = n > 0 ? sim.steps[n - 1] : null;
     // rail: which part of the process is active
     const sinceStep = cur ? u - starts[n - 1] : 0; const active = !cur ? 0 : cur.final ? 6 : sinceStep < 260 && cur.stage !== 1 && cur.stage !== 2 ? 3 : cur.stage;
@@ -123,24 +125,35 @@ export function initCliDemo(root: HTMLElement, opts: { reduced: boolean }) {
     const pct = Math.round(((cur?.progress ?? 0) / o.maxPages) * 100);
     $('[data-pct]').textContent = pct + '%'; ($('[data-bar]') as HTMLElement).style.width = Math.max(pct, cur ? 2 : 0) + '%'; $('[data-count]').textContent = `${cur?.progress ?? 0}/${o.maxPages}`;
     // robots.txt panel
-    const chk = $('[data-check]');
-    const robotsHit = cur && cur.tag.kind === 'bad' && cur.tag.text.startsWith('robots');
-    const rule = robotsHit ? cur!.tag.text.replace('robots.txt disallows ', '') : '';
+    const focus = hover ?? pinned, fi = focus ? stepOf.get(focus) : undefined, fstep = fi !== undefined && fi < n ? sim.steps[fi] : null;
+    root.querySelectorAll<HTMLElement>('[data-url]').forEach((el) => el.classList.toggle('is-hl', !!focus && el.dataset.url === focus));
+    rail.forEach((li, i) => li.classList.toggle('is-sel', !!fstep && i === fstep.stage));
+    const chk = $('[data-check]'), shownStep = focus ? fstep : cur;
+    const robotsHit = shownStep && shownStep.tag.kind === 'bad' && shownStep.tag.text.startsWith('robots');
+    const rule = robotsHit ? shownStep!.tag.text.replace('robots.txt disallows ', '') : '';
     root.querySelectorAll('[data-rule]').forEach((el) => el.classList.toggle('is-hit', (el as HTMLElement).dataset.rule === rule));
-    chk.innerHTML = !cur || !cur.current ? 'checking the seed URL…' : robotsHit ? `<b class="is-bad">disallowed</b> ${esc(new URL(cur.current).pathname)}` : cur.tag.text.includes('depth') || cur.tag.text.includes('visited') ? `<span class="dim">skipped</span> ${esc(new URL(cur.current).pathname)}` : `<b>allowed</b> ${esc(new URL(cur.current).pathname)}`;
+    chk.innerHTML = focus && !fstep ? `<span class="dim">${esc(new URL(focus).pathname)} is waiting in the queue</span>` : focus && fstep ? `<b>${esc(new URL(focus).pathname)}</b> ${esc(fstep.tag.text)}${pinned && !hover ? ' · tap again to release' : ''}` : !cur || !cur.current ? 'checking the seed URL…' : robotsHit ? `<b class="is-bad">disallowed</b> ${esc(new URL(cur.current).pathname)}` : cur.tag.text.includes('depth') || cur.tag.text.includes('visited') ? `<span class="dim">skipped</span> ${esc(new URL(cur.current).pathname)}` : `<b>allowed</b> ${esc(new URL(cur.current).pathname)}`;
     // queue ribbon
-    const q = !cur ? '' : cur.queue.slice(0, 7).map((x) => `<li><span>${esc(x.url.replace('https://', '').replace(/\/$/, '') || x.url)}</span><i>d${x.depth}</i></li>`).join('') + (cur.queue.length > 7 ? `<li class="more">+${cur.queue.length - 7}</li>` : '') || '<li class="more">empty</li>';
+    const q = !cur ? '' : cur.queue.slice(0, 7).map((x) => `<li data-url="${esc(x.url)}" tabindex="0" role="button"><span>${esc(x.url.replace('https://', '').replace(/\/$/, '') || x.url)}</span><i>d${x.depth}</i></li>`).join('') + (cur.queue.length > 7 ? `<li class="more">+${cur.queue.length - 7}</li>` : '') || '<li class="more">empty</li>';
     if (q !== lastQ) { lastQ = q; $('[data-queue]').innerHTML = q; }
     $('[data-visited]').textContent = 'visited ' + (cur?.visited ?? 0);
     // results ledger
     const res = cur?.results ?? [];
-    const r = res.map((x) => `<li class="${x.hit ? 'is-hit' : ''}"><code>${esc(x.url.replace('https://', ''))}</code><span>${esc(x.title)}</span><b>${x.hit ? 'match' : ''}</b></li>`).join('');
+    const r = res.map((x) => `<li class="${x.hit ? 'is-hit' : ''}" data-url="${esc(x.url)}" tabindex="0" role="button"><code>${esc(x.url.replace('https://', ''))}</code><span>${esc(x.title)}</span><b>${x.hit ? 'match' : ''}</b></li>`).join('');
     if (r !== lastR) { lastR = r; $('[data-results]').innerHTML = r; const l = $('[data-results]'); l.scrollTop = l.scrollHeight; }
     $('[data-rcount]').textContent = `${res.length} page${res.length === 1 ? '' : 's'}`;
     const fin = !!cur?.final; $('[data-lh]').firstChild!.textContent = fin ? 'results.txt ' : 'Results '; $('[data-stamp]').style.opacity = String(fin ? ease((u - starts[n - 1]) / 500) : 0);
     stage.classList.toggle('is-final', fin);
   }
 
+  const urlOf = (t: EventTarget | null) => ((t as Element | null)?.closest?.('[data-url]') as HTMLElement | null)?.dataset.url ?? null;
+  const setHover = (u: string | null) => { if (u !== hover) { hover = u; loop.redraw(); } };
+  root.addEventListener('pointerover', (e) => { if ((e as PointerEvent).pointerType !== 'touch') setHover(urlOf(e.target)); });
+  root.addEventListener('pointerout', (e) => { if (!urlOf(e.relatedTarget)) setHover(null); });
+  root.addEventListener('focusin', (e) => setHover(urlOf(e.target))); root.addEventListener('focusout', () => setHover(null));
+  const toggle = (u: string | null) => { pinned = u && u !== pinned ? u : null; loop.redraw(); };
+  root.addEventListener('click', (e) => { const u = urlOf(e.target); if (u) toggle(u); else if (pinned && (e.target as Element).closest('.cl__stage')) toggle(null); });
+  root.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { const u = urlOf(e.target); if (u) { e.preventDefault(); toggle(u); } } });
   const loop = createLoop(root, { cycle: CYCLE, reduced: opts.reduced, staticU: CYCLE - HOLD * 0.6, render });
   (root as unknown as { __cli: unknown }).__cli = { seek: (ms: number) => loop.seek(ms), get pos() { return loop.pos; }, get running() { return loop.running; }, cycle: CYCLE, steps: sim.steps.length, get text() { return out.textContent; } };
 }

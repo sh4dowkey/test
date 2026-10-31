@@ -1,5 +1,5 @@
 """Browser QA against the production preview. Usage: python3 tools/qa.py [screenshot_dir]  (after `npm run build`)."""
-import sys, os, subprocess, time, hashlib, urllib.request as U
+import sys, os, subprocess, time, hashlib, json, urllib.request as U
 from playwright.sync_api import sync_playwright
 out = sys.argv[1] if len(sys.argv) > 1 else '/home/claude/shots'; os.makedirs(out, exist_ok=True)
 URL = 'http://127.0.0.1:4321/'
@@ -11,6 +11,11 @@ fails = []
 def ok(name, cond, extra=''):
     print(('PASS ' if cond else 'FAIL ') + name + (f'  [{extra}]' if extra != '' else ''))
     if not cond: fails.append(name)
+def put(pg, sel, frac, wait=1700):
+    """Scroll so the element's top edge sits at `frac` of the viewport height."""
+    pg.evaluate(f"window.scrollTo(0, document.querySelector('{sel}').getBoundingClientRect().top + scrollY - {frac}*innerHeight)"); pg.wait_for_timeout(wait)
+def inset(pg, js):
+    v = pg.evaluate(js); import re; n = [float(x) for x in re.findall(r'[\d.]+', v or '')]; return n or [0,0,0,0]
 def goto_sel(pg, sel, off=70, wait=900):
     pg.evaluate(f"window.scrollTo(0, document.querySelector('{sel}').getBoundingClientRect().top + scrollY - {off})"); pg.wait_for_timeout(wait)
 try:
@@ -29,6 +34,7 @@ try:
     pg.screenshot(path=f'{out}/d-hero-0.png')
     hero = pg.evaluate("document.querySelector('.hero').innerText").replace("\n","")
     ok('hero: only Welcome + supporting phrase (no name, employer, project names, résumé link)', 'Welcome' in hero and 'Take a look around' in hero and not any(w in hero for w in ['Pandey','Bobcares','CrawlX','Cerberus','Pwndbg','sum','DevOps']), hero[:60])
+    wh = pg.inner_text('#work-h'); ok('portfolio: section heading is "Portfolio" (not Selected work, not the name)', wh.strip().lower() == 'portfolio' and 'selected work' not in pg.inner_text('#work').lower() and 'pandey' not in wh.lower(), wh)
     ok('hero: top-left label is Home', pg.evaluate("document.querySelector('.nav__home').textContent")=='Home')
     ok('hero: exactly one pinned sequence on the page', pg.evaluate("document.querySelectorAll('.pin-spacer').length")==1)
     ok('hero: old index and eyebrow are gone from the DOM', pg.evaluate("!document.querySelector('.index, .hero__eyebrow, .hero__index, .hero__actions')"))
@@ -52,6 +58,10 @@ try:
     bad = pg.evaluate("""(()=>{const t=['Play','Pause','Step','Replay','Back','Next step','Auto-play','Depth','Reset','1×','2×','4×'];const out=[];
       document.querySelectorAll('[data-cx],[data-cli],[data-cerb]').forEach(r=>{r.querySelectorAll('button,select,input,[role=tab]').forEach(e=>{const s=(e.textContent||'').trim();if(e.tagName!=='BUTTON'||t.includes(s)||e.dataset.act)out.push(e.tagName+':'+s)})});return out})()""")
     ok('demos: no playback, speed, depth, step or navigation controls', bad == [], bad[:4])
+
+    def shots_ok(page):
+        return page.evaluate("""(()=>[...document.querySelectorAll('.crawlx__real .shot')].map(f=>{const fr=f.getBoundingClientRect(),im=f.querySelector('img'),ir=im.getBoundingClientRect(),c=f.querySelector('figcaption code'),cr=c.getBoundingClientRect();
+          return {inside:ir.left>=fr.left-1&&ir.right<=fr.right+1&&cr.left>=fr.left-1&&cr.right<=fr.right+1,noX:c.scrollWidth<=c.clientWidth+1,below:cr.top>=ir.bottom-1,ratio:Math.abs(ir.width/ir.height-im.naturalWidth/im.naturalHeight)<0.06,fits:fr.right<=document.querySelector('.crawlx__frame').getBoundingClientRect().right+1,lines:Math.round(cr.height/parseFloat(getComputedStyle(c).lineHeight))}}))()""")
     # CrawlX
     goto_sel(pg, '[data-cx]', 80, 1800)
     p0 = pg.evaluate("document.querySelector('[data-cx]').__cx.pos"); pg.wait_for_timeout(1200); p1 = pg.evaluate("document.querySelector('[data-cx]').__cx.pos")
@@ -85,6 +95,24 @@ try:
     bb = pg.locator('[data-cx] .n[data-u="/catalog/archive"] .n__dot').bounding_box(); pg.mouse.move(bb['x']+bb['width']/2, bb['y']+bb['height']/2); pg.wait_for_timeout(250)
     ok('crawlx: hover inspects a node', 'archive' in pg.inner_text('[data-cx] [data-now]').lower() and 'inspecting' in pg.inner_text('[data-cx] [data-now]').lower())
     pg.mouse.move(5,5); pg.screenshot(path=f'{out}/d-crawlx.png')
+    # CrawlX: optional inspection (hover, keyboard, pin) while the loop keeps running
+    pg.evaluate(f"document.querySelector('[data-cx]').__cx.seek(0.8*{cyc})"); pg.wait_for_timeout(200)
+    bb = pg.locator('[data-cx] .n[data-u="/catalog"] .n__dot').bounding_box(); pg.mouse.move(bb['x']+bb['width']/2, bb['y']+bb['height']/2); pg.wait_for_timeout(250)
+    ins = pg.inner_text('[data-cx] [data-now]')
+    rel = pg.evaluate("[...document.querySelectorAll('[data-cx] .cx__e')].filter(e=>e.classList.contains('is-rel')).length"); dim = pg.evaluate("[...document.querySelectorAll('[data-cx] .cx__e.is-rel')].length>0 && [...document.querySelectorAll('[data-cx] .cx__e:not(.is-rel)')].filter(e=>+e.style.opacity>0).every(e=>+e.style.opacity<0.3)")
+    ok('crawlx inspect: hovering a page shows where it was found and what it links to', 'found on' in ins.lower() and 'links to' in ins.lower() and '/about' in ins, ins.replace('\n',' ')[:100])
+    ok('crawlx inspect: incoming and outgoing links highlight and the rest recede', rel >= 3 and dim, rel)
+    p0 = pg.evaluate("document.querySelector('[data-cx]').__cx.pos"); pg.wait_for_timeout(700)
+    ok('crawlx inspect: the loop keeps running during inspection', pg.evaluate("document.querySelector('[data-cx]').__cx.running") and pg.evaluate("document.querySelector('[data-cx]').__cx.pos") != p0)
+    pg.mouse.click(bb['x']+bb['width']/2, bb['y']+bb['height']/2); pg.mouse.move(5, 5); pg.wait_for_timeout(300)
+    ok('crawlx inspect: a click pins the selection after the pointer leaves', 'inspecting' in pg.inner_text('[data-cx] [data-now]').lower() and 'catalog' in pg.inner_text('[data-cx] [data-now]').lower())
+    pg.locator('[data-cx] [data-now] [data-sel]').first.click(); pg.wait_for_timeout(250)
+    ok('crawlx inspect: related-page chips jump the inspector to that page', 'catalog' not in pg.inner_text('[data-cx] [data-now] .cx__url').lower())
+    pg.locator('[data-cx] .n[data-u="/blog"]').focus(); pg.keyboard.press('Enter'); pg.mouse.move(5,5); pg.wait_for_timeout(250); pg.keyboard.press('Enter'); pg.locator('[data-cx] .n[data-u="/blog"]').blur(); pg.wait_for_timeout(250)
+    ok('crawlx inspect: keyboard focus plus Enter selects and releases', 'crawling' in pg.inner_text('[data-cx] [data-now]').lower() or 'inspecting' not in pg.inner_text('[data-cx] [data-now]').lower())
+    sc = shots_ok(pg)
+    ok('crawlx screenshots (desktop): images and captions stay inside their containers, ratios preserved, no horizontal overflow', len(sc) == 2 and all(x['inside'] and x['noX'] and x['below'] and x['ratio'] and x['fits'] for x in sc), sc)
+    pg.locator('.crawlx__real').scroll_into_view_if_needed(); pg.wait_for_timeout(600); pg.locator('.crawlx__real').screenshot(path=f'{out}/d-crawlx-shots.png')
     # pause off-screen
     pg.evaluate("window.scrollTo(0,0)"); pg.wait_for_timeout(1500)
     ok('crawlx: loop suspended while off-screen', not pg.evaluate("document.querySelector('[data-cx]').__cx.running"))
@@ -103,6 +131,19 @@ try:
     pg.evaluate(f"document.querySelector('[data-cli]').__cli.seek({cc}*0.5)"); pg.wait_for_timeout(150)
     ok('cli: seeking backwards rebuilds consistently', pg.locator('[data-cli] [data-results] li').count() == pg.evaluate("document.querySelector('[data-cli]').__cli.text").count('Visited:'))
     pg.screenshot(path=f'{out}/d-cli.png')
+    # CLI: inspect a result, link or step while the run keeps going
+    pg.evaluate(f"document.querySelector('[data-cli]').__cli.seek({cc}-2500)"); pg.wait_for_timeout(250)
+    row = pg.locator('[data-cli] [data-results] li[data-url="https://notes.sample.test/guides/backup"]'); row.hover(); pg.wait_for_timeout(250)
+    hl_t = pg.evaluate("[...document.querySelectorAll('[data-cli] .cl__ln.is-hl')].map(e=>e.textContent)"); hl_r = pg.locator('[data-cli] [data-results] li.is-hl').count(); sel_stage = pg.evaluate("[...document.querySelectorAll('[data-cli] .cl__rail li.is-sel')].map(e=>e.textContent)")
+    ok('cli inspect: hovering a result highlights its terminal line, its row and the relevant stage', any('guides/backup' in t for t in hl_t) and hl_r == 1 and len(sel_stage) == 1, (hl_t[:1], hl_r, sel_stage))
+    ok('cli inspect: the decision for that URL is shown', 'queued' in pg.inner_text('[data-cli] [data-check]').lower() or 'match' in pg.inner_text('[data-cli] [data-check]').lower(), pg.inner_text('[data-cli] [data-check]'))
+    pg.locator('[data-cli] .cl__ln[data-url*="admin/panel"]').hover(); pg.wait_for_timeout(250)
+    ok('cli inspect: a robots.txt-blocked link lights its Disallow rule', pg.locator('[data-cli] [data-rule].is-hit').count() == 1 and 'disallows' in pg.inner_text('[data-cli] [data-check]').lower(), pg.inner_text('[data-cli] [data-check]'))
+    pg.mouse.move(5,5); pg.wait_for_timeout(200)
+    pa = pg.evaluate("document.querySelector('[data-cli]').__cli.pos"); pg.wait_for_timeout(600)
+    ok('cli inspect: the run keeps progressing while inspecting', pg.evaluate("document.querySelector('[data-cli]').__cli.running") and pg.evaluate("document.querySelector('[data-cli]').__cli.pos") != pa)
+    row.focus(); pg.keyboard.press('Enter'); pg.mouse.move(5,5); pg.wait_for_timeout(250); ok('cli inspect: keyboard Enter pins a result', pg.locator('[data-cli] [data-results] li.is-hl').count() == 1)
+    pg.keyboard.press('Enter'); row.blur(); pg.wait_for_timeout(250); ok('cli inspect: Enter again releases it', pg.locator('[data-cli] [data-results] li.is-hl').count() == 0)
     # Cerberus
     goto_sel(pg, '[data-cerb]', 80, 1500); cy = pg.evaluate("document.querySelector('[data-cerb]').__cb.cycle"); st = pg.evaluate("document.querySelector('[data-cerb]').__cb.starts")
     p0 = pg.evaluate("document.querySelector('[data-cerb]').__cb.pos"); pg.wait_for_timeout(1000)
@@ -119,21 +160,58 @@ try:
     ok('cerberus: AD CS request (E-11) exists before the deception alert, not after', 'E-11' in cb(st[3]+3000)['stream'] and cb(st[3]+1000)['alerts']==2 and cb(st[4]+300)['alerts']==2 and cb(st[4]+1500)['alerts']==3)
     ok('cerberus: hunt phase shows the PDF queries and timeline', 'winlog.event_id: 4769' in seq[5]['aux'] and 'PSEXESVC.exe' in seq[5]['aux'])
     ok('cerberus: rules phase lists six Sigma rules, three marked fired, with an incident summary', seq[6]['aux'].count('fired')>=3 and seq[6]['aux'].count('not triggered')==3 and 'Incident summary' in seq[6]['aux'], seq[6]['aux'].count('not triggered'))
-    cb(st[7]+1200); ok('cerberus: return phase dissolves the stage', float(pg.evaluate("getComputedStyle(document.querySelector('[data-cerb] [data-stage]')).opacity"))<0.7)
+    cb(st[7]+1200); ok('cerberus: return phase dissolves the stage', float(pg.evaluate("getComputedStyle(document.querySelector('[data-cerb] [data-cbstage]')).opacity"))<0.7)
     r0 = cb(30); ok('cerberus: next cycle starts from the initial state', r0['events']==0 and r0['alerts']==0 and r0['phase']=='Environment and reconnaissance')
     cb(st[3]+3500); pg.hover('[data-cerb] .cb__tile[data-host=ca01]'); pg.wait_for_timeout(200)
     ok('cerberus: hover on CA01 shows the PDF address and design status', '192.168.56.11' in pg.inner_text('[data-cerb] [data-detail]') and 'planned' in pg.inner_text('[data-cerb] [data-detail]').lower())
     pg.hover('[data-cerb] [data-stream] [data-ev=E-11]'); pg.wait_for_timeout(200)
     ok('cerberus: hover on an event shows its fields (template, requester, SAN)', all(k in pg.inner_text('[data-cerb] [data-detail]') for k in ['CERBERUS_WebServer_ESC1','CERBERUS\\alice','administrator@cerberus.local']))
     ok('cerberus: no credentials, passwords or attack commands anywhere in the section', not any(w in pg.inner_text('[data-cerb]').lower() for w in ['password','p@ss','welcome123','impacket','rubeus','certipy req','mimikatz']))
+    # Cerberus regression: resting the pointer on empty parts of the scene must not create a focus or break rendering
+    cb(st[5]+7000); perrs = []; pg.on('pageerror', lambda e: perrs.append(str(e)))
+    for (px_, py_) in [(0.2,0.1),(0.5,0.5),(0.8,0.9),(0.05,0.5)]:
+        sb = pg.locator('[data-cerb] [data-cbstage]').bounding_box(); pg.mouse.move(sb['x']+sb['width']*px_, sb['y']+min(sb['height'],800)*py_); pg.wait_for_timeout(250)
+    ok('cerberus: hovering empty parts of the scene creates no focus, no errors, and the loop keeps running', perrs == [] and json.loads(pg.evaluate("document.querySelector('[data-cerb]').__cb.focus"))['pinned'] is None and pg.evaluate("document.querySelector('[data-cerb]').__cb.running"), perrs[:1])
+    # Cerberus: inspect an alert, a stage, a host and an event while the scenario continues
+    cb(st[5]+7000); pg.locator('[data-cerb] [data-alerts] li[data-alert=A-3]').hover(); pg.wait_for_timeout(250)
+    ok('cerberus inspect: hovering an alert highlights its evidence event, host tile, beam and timeline entry', pg.locator('[data-cerb] [data-stream] li.is-hl [data-ev=E-11]').count() == 1 and pg.evaluate("document.querySelector('[data-cerb] .cb__tile[data-host=ca01]').classList.contains('is-hover')") and pg.evaluate("[...document.querySelectorAll('[data-cerb] .cb__tl li.is-hl')].some(l=>/honeypot/i.test(l.textContent))") and 'ad cs honeypot' in pg.inner_text('[data-cerb] [data-detail]').lower())
+    pg.locator('[data-cerb] [data-stage="3"]').hover(); pg.wait_for_timeout(250)
+    ok('cerberus inspect: hovering a pipeline stage explains it and lights the relevant hosts', 'sigma rules' in pg.inner_text('[data-cerb] [data-detail]').lower() and pg.evaluate("document.querySelector('[data-cerb] .cb__tile[data-host=siem01]').classList.contains('is-hover')"))
+    pg.locator('[data-cerb] .cb__tile[data-host=srv01]').hover(); pg.wait_for_timeout(250)
+    ok('cerberus inspect: hovering a host highlights its events and alerts', pg.locator('[data-cerb] [data-stream] li.is-hl').count() >= 2 and pg.locator('[data-cerb] [data-alerts] li.is-hl').count() == 1 and '192.168.56.20' in pg.inner_text('[data-cerb] [data-detail]'))
+    pa = pg.evaluate("document.querySelector('[data-cerb]').__cb.pos"); pg.wait_for_timeout(600)
+    ok('cerberus inspect: the scenario keeps running during inspection', pg.evaluate("document.querySelector('[data-cerb]').__cb.running") and pg.evaluate("document.querySelector('[data-cerb]').__cb.pos") != pa)
+    pg.locator('[data-cerb] [data-alerts] li[data-alert=A-1]').click(); pg.mouse.move(5,5); pg.wait_for_timeout(300)
+    ok('cerberus inspect: a click pins the selection after the pointer leaves', 'kerberoasting' in pg.inner_text('[data-cerb] [data-detail]').lower() and pg.locator('[data-cerb] [data-stream] li.is-hl').count() >= 3)
+    pg.locator('[data-cerb] [data-alerts] li[data-alert=A-1]').focus(); pg.keyboard.press('Enter'); pg.mouse.move(5,5); pg.wait_for_timeout(300)
+    ok('cerberus inspect: keyboard Enter releases the pinned alert', 'kerberoasting' not in pg.inner_text('[data-cerb] [data-detail]').lower())
+    pg.locator('[data-cerb] [data-alerts] li[data-alert=A-1]').click(); pg.mouse.move(5,5); cb(cy - 400); cb(300)
+    ok('cerberus inspect: a pinned selection is released when the loop restarts', pg.locator('[data-cerb] [data-stream] li.is-hl').count() == 0)
+    ok('cerberus: a quiet "simulated, not live telemetry" note replaces the loud pill', 'not live telemetry' in pg.inner_text('[data-cerb] .cb__sim') and pg.locator('.dm__badge, .cb__sim b').count() == 0)
     pg.mouse.move(5,5); cb(st[2]+3000); pg.screenshot(path=f'{out}/d-cerberus.png')
-    # Pwndbg scrub
-    goto_sel(pg, '[data-cym]', 80, 600)
-    pg.evaluate("window.scrollTo(0, document.querySelector('[data-cym]').getBoundingClientRect().bottom + scrollY - innerHeight*0.3)"); pg.wait_for_timeout(2200)
-    fin = pg.evaluate("(()=>{const q=s=>[...document.querySelectorAll(s)];return {news:q('.cym__new code').every(e=>+getComputedStyle(e).opacity>.95),links:q('.cym__link i').every(e=>getComputedStyle(e).transform!=='none'&&new DOMMatrix(getComputedStyle(e).transform).a>.95),usage:q('.cym__usage p').map(e=>getComputedStyle(e).clipPath),fig:getComputedStyle(document.querySelector('.cym .evidence')).clipPath}})()")
-    ok('pwndbg: scrolling through plays the full explanation (all 7 mappings, both usage lines, patch evidence)', fin['news'] and fin['links'] and all('0%' in u or u=='none' for u in fin['usage']) and ('0%' in fin['fig'] or fin['fig']=='none'), fin)
-    ok('pwndbg: PR, commit and issue links are correct', pg.evaluate("[...document.querySelectorAll('#pwndbg a')].map(a=>a.href)").__contains__('https://github.com/pwndbg/pwndbg/pull/3160') and any('7d92563' in h for h in pg.evaluate("[...document.querySelectorAll('#pwndbg a')].map(a=>a.href)")) and any('issues/3154' in h for h in pg.evaluate("[...document.querySelectorAll('#pwndbg a')].map(a=>a.href)")))
-    pg.screenshot(path=f'{out}/d-pwndbg.png')
+    # Pwndbg: the command comparison and the evidence image have their own triggers
+    put(pg, '.cym__usage', 1.2, 600); put(pg, '.cym__usage', 0.92, 1700)
+    u0 = inset(pg, "getComputedStyle(document.querySelector('.cym__usage p')).clipPath")
+    ok('pwndbg: the command transformation has begun as the block enters the view', u0[1] < 99, u0)
+    put(pg, '.cym__usage', 0.55, 1700)
+    mid = pg.evaluate("[...document.querySelectorAll('.cym__link i')].map(e=>new DOMMatrix(getComputedStyle(e).transform).a)")
+    ok('pwndbg: option-to-subcommand paths draw progressively while their rows are on screen', 0.0 <= min(mid) < 0.999 or max(mid) > 0.05, [round(x,2) for x in mid])
+    pg.evaluate("window.scrollTo(0, document.querySelector('.cym__table').getBoundingClientRect().bottom + scrollY - 0.6*innerHeight)"); pg.wait_for_timeout(1900)
+    done = pg.evaluate("(()=>{const q=s=>[...document.querySelectorAll(s)];return {news:q('.cym__new code').every(e=>+getComputedStyle(e).opacity>.95),links:q('.cym__link i').every(e=>new DOMMatrix(getComputedStyle(e).transform).a>.95),usage:q('.cym__usage p').map(e=>getComputedStyle(e).clipPath)}})()")
+    ok('pwndbg: the whole command comparison is finished while the table is still comfortably visible', done['news'] and done['links'] and all(inset(pg, f"'{u}'")[1] < 1 for u in done['usage']), done)
+    put(pg, '.cym .evidence', 1.25, 600); put(pg, '.cym .evidence', 0.99, 1700)
+    e0 = inset(pg, "getComputedStyle(document.querySelector('.cym .evidence')).clipPath")
+    ok('pwndbg: evidence image has barely started before it approaches the view', e0[2] > 60, e0)
+    put(pg, '.cym .evidence', 0.86, 1700); e1 = inset(pg, "getComputedStyle(document.querySelector('.cym .evidence')).clipPath")
+    ok('pwndbg: evidence image starts revealing as it approaches the viewing area (not after half has passed)', 5 < e1[2] < 99, e1)
+    put(pg, '.cym .evidence', 0.5, 1900); e2 = inset(pg, "getComputedStyle(document.querySelector('.cym .evidence')).clipPath")
+    ok('pwndbg: evidence image is fully revealed with its top at mid-screen (still comfortably visible)', e2[2] < 1, e2)
+    put(pg, '.cym .evidence', 1.1, 1900); e3 = inset(pg, "getComputedStyle(document.querySelector('.cym .evidence')).clipPath")
+    ok('pwndbg: scrolling back up reverses the evidence reveal', e3[2] > 90, e3)
+    put(pg, '.cym__usage', 1.3, 1900); u3 = inset(pg, "getComputedStyle(document.querySelector('.cym__usage p')).clipPath")
+    ok('pwndbg: scrolling back up reverses the command transformation', u3[1] > 90, u3)
+    ok('pwndbg: PR, commit and issue links are correct', (lambda h: 'https://github.com/pwndbg/pwndbg/pull/3160' in h and any('7d92563' in x for x in h) and any('issues/3154' in x for x in h))(pg.evaluate("[...document.querySelectorAll('#pwndbg a')].map(a=>a.href)")))
+    put(pg, '.cym .evidence', 0.4, 1800); pg.screenshot(path=f'{out}/d-pwndbg.png')
     # toolkit
     goto_sel(pg, '#toolkit', 70, 2200)
     names = pg.eval_on_selector_all('.tool__name', 'els=>els.map(e=>e.textContent)')
@@ -149,7 +227,10 @@ try:
     pg.mouse.move(5,5); pg.screenshot(path=f'{out}/d-toolkit.png')
     # experience
     goto_sel(pg, '#resume', 70, 1200); rt = pg.inner_text('#resume')
-    ok('experience: Bobcares, Poornam, Jharsuguda, L1/L2/L3, June 2026 all present and accurate', all(k in rt for k in ['Bobcares','Poornam Info Vision Pvt. Ltd.','Jharsuguda','L1, L2 and L3','June 2026']) and 'Engineer' not in rt.split('Pwndbg')[0])
+    bob = rt.split('Pwndbg contribution')[0]
+    ok('experience: Bobcares, Poornam, June 2026 and Kochi, Kerala as the workplace', all(k in bob for k in ['Bobcares','Poornam Info Vision Pvt. Ltd.','June 2026','Kochi, Kerala']) and 'Jharsuguda' not in bob.split('Hometown')[0].split('DevOps')[-1] and 'Engineer' not in bob)
+    ok('experience: no L1/L2/L3 wording anywhere on the page', not any(k in pg.inner_text('body') for k in ['L1','L2 ','L3']))
+    ok('experience: Jharsuguda appears only labelled as hometown', pg.evaluate("(()=>{const els=[...document.querySelectorAll('dd,em,p,li')].filter(e=>e.children.length===0&&e.textContent.includes('Jharsuguda'));return els.length>0&&els.every(e=>e.parentElement.textContent.toLowerCase().includes('hometown'))})()"))
     pg.screenshot(path=f'{out}/d-resume.png')
     # contact
     goto_sel(pg, '#contact', 70, 2600)
@@ -161,6 +242,23 @@ try:
     a = pg.evaluate("document.querySelector('.contact__visual canvas').toDataURL().length"); pg.wait_for_timeout(1500); b2 = pg.evaluate("document.querySelector('.contact__visual canvas').toDataURL().length")
     ok('contact: canvas content changes between frames', a != b2)
     pg.screenshot(path=f'{out}/d-contact.png')
+    # navigation scroll: deliberate, monotonic, accurate, Lenis and ScrollTrigger in sync
+    def nav_run(link, dest, start):
+        pg.evaluate(start); pg.wait_for_timeout(1400); pg.evaluate("document.querySelector('.nav').classList.remove('is-hidden')")
+        y0 = pg.evaluate('scrollY'); t0 = time.time(); pg.click(f".nav ul a:text-is('{link}')"); samples = []
+        while time.time() - t0 < 5:
+            samples.append((time.time() - t0, pg.evaluate('scrollY'))); pg.wait_for_timeout(20)
+        fy = samples[-1][1]; reach = next((t for t, y in samples if abs(y - fy) < 3), 9)
+        v = max(abs(samples[i+1][1] - samples[i][1]) / max(1e-3, samples[i+1][0] - samples[i][0]) for i in range(len(samples) - 1)) / 900
+        mono = all((samples[i+1][1] - samples[i][1]) * (1 if fy >= y0 else -1) > -3 for i in range(len(samples) - 1)) and max(y for _, y in samples) <= max(fy, y0) + 3 and min(y for _, y in samples) >= min(fy, y0) - 3
+        landed = -3 <= pg.evaluate(f"Math.round(document.querySelector('{dest}').getBoundingClientRect().top)") <= 130 and abs(pg.evaluate('window.__lenis.scroll') - fy) < 3
+        return reach, v, mono, landed, abs(fy - y0) / 900
+    r, v, mono, landed, dist = nav_run('Writing', '#writing', "document.querySelector('#toolkit').scrollIntoView()")
+    ok('nav scroll (neighbouring section): takes a deliberate 1.3-2.0 s', 1.3 <= r <= 2.0, (round(r, 2), round(dist, 1)))
+    ok('nav scroll (neighbouring section): peak speed stays calm (under 3 screens/s)', v < 3, round(v, 2))
+    ok('nav scroll (neighbouring section): no overshoot or reversal, lands on target, Lenis in sync', mono and landed)
+    r, v, mono, landed, dist = nav_run('Toolkit', '#toolkit', 'window.scrollTo(0,0)')
+    ok('nav scroll (long jump from the top): 1.5-3.0 s, no overshoot, accurate landing', 1.5 <= r <= 3.0 and mono and landed, (round(r, 2), round(v, 1), round(dist, 1)))
     # anchors
     res = {}
     for name, sel in [('Work','#work'),('Toolkit','#toolkit'),('Writing','#writing'),('Résumé','#resume'),('Contact','#contact')]:
@@ -182,6 +280,32 @@ try:
         ok(f'mobile {w}: no page errors', me==[], me[:2])
         word = m.evaluate("(()=>{const e=document.querySelector('.hero h1').getBoundingClientRect();return [e.left>=0,e.right<=innerWidth,e.height>30]})()"); ok(f'mobile {w}: "Welcome" fits the screen', all(word), word)
         m.screenshot(path=f'{out}/m{w}-hero.png')
+        def hero_geo():
+            return m.evaluate("(()=>{const pin=document.querySelector('.hero__pin'),c=document.querySelector('.hero__canvas'),s=document.querySelector('.hero').__hero,b=s.bounds();return {pinW:pin.clientWidth,pinH:pin.clientHeight,cssW:parseFloat(c.style.width),cssH:parseFloat(c.style.height),bw:c.width/c.height,tall:s.tall,inside:b.minX>=0&&b.maxX<=s.W&&b.minY>=0&&b.maxY<=s.H,b:[Math.round(b.minX),Math.round(b.maxX),Math.round(b.minY),Math.round(b.maxY)],W:s.W,H:s.H}})()")
+        g0 = hero_geo(); ok(f'mobile {w}: hero canvas matches the pinned frame and the whole tree sits inside it', abs(g0['cssH'] - g0['pinH']) < 1.5 and abs(g0['cssW'] - g0['pinW']) < 1.5 and g0['inside'] and g0['tall'], g0)
+        spx = m.evaluate("document.querySelector('.pin-spacer').offsetHeight - innerHeight")
+        m.evaluate(f"window.scrollTo(0,{spx}*0.5)"); m.wait_for_timeout(900)
+        m.set_viewport_size({'width': w, 'height': h - 75}); m.wait_for_timeout(500); m.set_viewport_size({'width': w, 'height': h}); m.wait_for_timeout(1400)
+        g1 = hero_geo(); ok(f'mobile {w}: after URL-bar-style resizes mid-sequence the canvas still matches the frame and the tree is inside', abs(g1['cssH'] - g1['pinH']) < 1.5 and g1['inside'], g1)
+        spx = m.evaluate("document.querySelector('.pin-spacer').offsetHeight - innerHeight")
+        radii, tones, ops = [], [], []
+        for f in [0, .2, .4, .6, .8, 1]:
+            m.evaluate(f"window.scrollTo(0,{f}*{spx})"); m.wait_for_timeout(1300)
+            radii.append(m.evaluate("parseFloat((document.querySelector('.hero__paper').style.clipPath.match(/circle\\(([\\d.]+)px/)||[0,0])[1])")); tones.append(m.evaluate("document.querySelector('.nav').dataset.tone")); ops.append(m.evaluate("+getComputedStyle(document.querySelector('.hero__copy')).opacity"))
+        ok(f'mobile {w}: mask, headline and nav tone stay synchronised through the full scroll', all(radii[i] <= radii[i+1] for i in range(5)) and radii[0] == 0 and radii[-1] >= (g1['W'] / 2) * 0 + ((g1['W'] / 2) ** 2 + max(0.56 * g1['H'], 0.44 * g1['H']) ** 2) ** 0.5 * 0.98 and ops[0] > 0.95 and ops[-1] < 0.05 and tones[0] == 'dark' and tones[-1] == 'paper', ([round(r) for r in radii], tones, [round(o, 2) for o in ops]))
+        m.screenshot(path=f'{out}/m{w}-hero-end.png')
+        px = m.evaluate("(()=>{const c=document.querySelector('.hero__canvas'),b=document.querySelector('.hero').__hero.bounds(),d=c.getContext('2d').getImageData(0,0,c.width,c.height),k=c.width/b.maxX*0+ (c.width/document.querySelector('.hero__pin').clientWidth);let n=0;for(let y=Math.floor(b.minY*k);y<Math.floor(b.maxY*k);y+=3)for(let x=Math.floor(b.minX*k);x<Math.floor(b.maxX*k);x+=3)if(d.data[(y*c.width+x)*4+3]>0)n++;return n})()")
+        ok(f'mobile {w}: the resolved tree is actually drawn within its bounds at the end of the sequence', px > 150, px)
+        m.evaluate(f"window.scrollTo(0,{spx}+4)"); m.wait_for_timeout(1000)
+        wt0 = m.evaluate("Math.round(document.querySelector('#work').getBoundingClientRect().top - innerHeight)")
+        m.evaluate(f"window.scrollTo(0,{spx}+innerHeight)"); m.wait_for_timeout(1200)
+        wt = m.evaluate("Math.round(document.querySelector('#work').getBoundingClientRect().top)"); ok(f'mobile {w}: the first project follows the pinned sequence directly (no extra spacer; one screen after release it is at the top)', abs(wt0) <= 6 and -10 <= wt <= 140, (wt0, wt))
+        ok(f'mobile {w}: Portfolio heading is visible after the opening', m.evaluate("document.querySelector('#work-h').getBoundingClientRect().top < innerHeight && document.querySelector('#work-h').getBoundingClientRect().bottom > -50") , m.inner_text('#work-h'))
+        m.evaluate(f"window.scrollTo(0,{spx}*0.3)"); m.wait_for_timeout(1300); ok(f'mobile {w}: scrolling back up reverses the opening', m.evaluate("parseFloat((document.querySelector('.hero__paper').style.clipPath.match(/circle\\(([\\d.]+)px/)||[0,0])[1])") < radii[-1] * 0.6)
+        m.evaluate("window.scrollTo(0,0)"); m.wait_for_timeout(1000)
+        m.evaluate("document.querySelector('.crawlx__real').scrollIntoView()"); m.wait_for_timeout(700); scm = shots_ok(m)
+        ok(f'mobile {w}: CrawlX screenshots and command captions stay inside their containers, wrap cleanly, ratios preserved', len(scm) == 2 and all(x['inside'] and x['noX'] and x['below'] and x['ratio'] and x['fits'] for x in scm), scm)
+        if w in (320, 390): m.locator('.crawlx__real').screenshot(path=f'{out}/m{w}-crawlx-shots.png')
         ovf = m.evaluate("(()=>{const w=innerWidth;const bad=[];document.querySelectorAll('body *').forEach(e=>{const r=e.getBoundingClientRect();if(r.width&&r.right>w+1&&!e.closest('.hero__pin,.cb__map,.cx__graph svg,.cb__stream,pre,.cx__logbody'))bad.push((e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className)||e.tagName)});return [document.documentElement.scrollWidth>w,bad.slice(0,5)]})()")
         ok(f'mobile {w}: no horizontal overflow', not ovf[0] and not ovf[1], ovf)
         nv = m.evaluate("(()=>{const r=document.querySelector('.nav nav').getBoundingClientRect();return [r.left>=0,r.right<=innerWidth]})()"); ok(f'mobile {w}: nav inside viewport', all(nv), nv)
@@ -190,6 +314,21 @@ try:
         m.evaluate(f"window.scrollTo(0,{sp})"); m.wait_for_timeout(1500); m.screenshot(path=f'{out}/m{w}-hero-100.png')
         gap = m.evaluate("(()=>{const w=document.querySelector('#work').getBoundingClientRect();return Math.round(w.top - innerHeight)})()")
         ok(f'mobile {w}: pinned opening is short (about 1.15 screens) and hands over to the first project', 0 < m.evaluate("document.querySelector('.pin-spacer').offsetHeight/innerHeight") < 2.4, round(m.evaluate("document.querySelector('.pin-spacer').offsetHeight/innerHeight"),2))
+        if w == 390:
+            m.evaluate("window.scrollTo(0,0)"); m.wait_for_timeout(400)
+            m.evaluate("document.querySelector('[data-cx]').scrollIntoView()"); m.wait_for_timeout(1200); m.evaluate("document.querySelector('[data-cx]').__cx.seek(0.8*document.querySelector('[data-cx]').__cx.cycle)"); m.wait_for_timeout(300)
+            m.locator('[data-cx] .n[data-u="/catalog"] .n__dot').tap(); m.wait_for_timeout(350)
+            ok('mobile 390 tap: CrawlX node selects, highlights its links and shows relations', 'found on' in m.inner_text('[data-cx] [data-now]').lower() and m.evaluate("document.querySelectorAll('[data-cx] .cx__e.is-rel').length") >= 3)
+            ok('mobile 390 tap: the loop keeps running while a node is selected', m.evaluate("document.querySelector('[data-cx]').__cx.running"))
+            m.locator('[data-cx] .n[data-u="/catalog"] .n__dot').tap(); m.wait_for_timeout(300); ok('mobile 390 tap: tapping again releases it', m.evaluate("document.querySelectorAll('[data-cx] .cx__e.is-rel').length") == 0)
+            m.evaluate("document.querySelector('[data-cli]').scrollIntoView()"); m.wait_for_timeout(1200); m.evaluate("document.querySelector('[data-cli]').__cli.seek(document.querySelector('[data-cli]').__cli.cycle-2500)"); m.wait_for_timeout(300)
+            m.locator('[data-cli] [data-results] li').first.tap(); m.wait_for_timeout(300)
+            ok('mobile 390 tap: a CLI result selects and highlights its terminal line and stage', m.locator('[data-cli] .cl__ln.is-hl').count() >= 1 and m.locator('[data-cli] .cl__rail li.is-sel').count() == 1)
+            m.evaluate("document.querySelector('[data-cerb]').scrollIntoView()"); m.wait_for_timeout(1200); m.evaluate("document.querySelector('[data-cerb]').__cb.seek(document.querySelector('[data-cerb]').__cb.starts[5]+7000)"); m.wait_for_timeout(300)
+            m.locator('[data-cerb] [data-alerts] li[data-alert=A-3] .cb__as').tap(); m.wait_for_timeout(300)
+            ok('mobile 390 tap: a Cerberus alert selects, lights its evidence and host, and the scenario keeps running', 'honeypot' in m.inner_text('[data-cerb] [data-detail]').lower() and m.locator('[data-cerb] [data-stream] li.is-hl').count() >= 1 and m.evaluate("document.querySelector('[data-cerb]').__cb.running"))
+            m.locator('[data-cerb] [data-stage="3"]').tap(); m.wait_for_timeout(300); ok('mobile 390 tap: a pipeline stage can be tapped to inspect it', 'sigma' in m.inner_text('[data-cerb] [data-detail]').lower())
+            m.evaluate("window.scrollTo(0,0)"); m.wait_for_timeout(300)
         if w in (320, 390):
             for sel,name in [('[data-cx]','crawlx'),('[data-cli]','cli'),('[data-cerb]','cerberus'),('#pwndbg','pwndbg'),('#toolkit','toolkit'),('#resume','resume'),('#contact','contact'),('#writing','writing')]:
                 m.evaluate(f"window.scrollTo(0, document.querySelector('{sel}').getBoundingClientRect().top + scrollY - 70)"); m.wait_for_timeout(2400 if name in('crawlx','cli','cerberus') else 1500); m.screenshot(path=f'{out}/m{w}-{name}.png')
